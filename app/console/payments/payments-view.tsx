@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { RotateCw, X } from 'lucide-react';
@@ -51,7 +52,17 @@ const columns: ColDef<LedgerPayment>[] = [
   { field: 'receiver_email', headerName: 'Pays', minWidth: 170, flex: 1.5, cellClass: 'cs-cell text-cs-soft' },
 ];
 
-export function PaymentsView({ payments, timelines, initialId, initialStatus }: { payments: LedgerPayment[]; timelines: Record<string, TimelineStep[]>; initialId: string | null; initialStatus: string }) {
+export function PaymentsView({
+  payments,
+  timelines,
+  initialId,
+  initialStatus,
+}: {
+  payments: LedgerPayment[];
+  timelines: Record<string, TimelineStep[]>;
+  initialId: string | null;
+  initialStatus: string;
+}) {
   const [tab, setTab] = useState(TABS.some((t) => t.key === initialStatus) ? initialStatus : 'ALL');
   const [selectedId, setSelectedId] = useState<string | null>(initialId);
   const selected = payments.find((p) => p.payment_id === selectedId) ?? null;
@@ -105,7 +116,15 @@ function Drawer({ p, steps, onClose }: { p: LedgerPayment; steps: TimelineStep[]
         <div className="flex items-start gap-3 border-b border-cs-rule p-5">
           <Avatar name={p.vendor_name} />
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-lg font-bold">{p.vendor_name}</h2>
+            <h2 className="truncate text-lg font-bold">
+              {p.vendor_id ? (
+                <Link href={`/console/vendors/${p.vendor_id}`} className="hover:text-cs-sign hover:underline">
+                  {p.vendor_name}
+                </Link>
+              ) : (
+                p.vendor_name
+              )}
+            </h2>
             <p className="text-sm text-cs-soft">
               Invoice {p.invoice_number}
               {p.due_date && `, due ${day(p.due_date)}`}

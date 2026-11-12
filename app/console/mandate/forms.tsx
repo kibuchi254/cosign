@@ -1,12 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useState } from 'react';
-import { Search, ShieldCheck, UserPlus } from 'lucide-react';
-import { day } from '@/lib/cosign-format';
+import { ChevronRight, Search, ShieldCheck, UserPlus } from 'lucide-react';
+import { day, money } from '@/lib/cosign-format';
 import type { Mandate, Vendor } from '@/lib/cosign-types';
 import { addVendor, saveMandate } from '../actions';
 import { Submit, useActionToast } from '../client';
-import { Avatar, Card, ErrorNote, Field, inputClass } from '../ui';
+import { Avatar, Card, Chip, ErrorNote, Field, inputClass } from '../ui';
 
 const dollars = (cents: number) => (cents / 100).toFixed(2);
 const fmt = (v: string, cur: string) => {
@@ -119,13 +120,25 @@ export function VendorDirectory({ vendors }: { vendors: Vendor[] }) {
         ) : (
           <ul className="divide-y divide-cs-rule">
             {shown.map((v) => (
-              <li key={v.id} className="flex items-center gap-3 px-5 py-3.5">
-                <Avatar name={v.name} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold">{v.name}</span>
-                  <span className="block truncate text-sm text-cs-soft">{v.paypal_email}</span>
-                </span>
-                <span className="hidden text-xs text-cs-faint sm:block">Approved {day(v.verified_at)}</span>
+              <li key={v.id}>
+                <Link href={`/console/vendors/${v.id}`} className={`group flex items-center gap-3 px-5 py-3.5 hover:bg-cs-hover ${v.active ? '' : 'opacity-70'}`}>
+                  <Avatar name={v.name} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate font-semibold">{v.name}</span>
+                      {!v.active && <Chip tone="neutral" icon={false}>Inactive</Chip>}
+                    </span>
+                    <span className="block truncate text-sm text-cs-soft">{v.paypal_email}</span>
+                    <span className="block text-xs text-cs-faint xl:hidden">
+                      {money(v.paid_cents, 'USD')} paid · {v.invoices} invoice{v.invoices === 1 ? '' : 's'}
+                    </span>
+                  </span>
+                  <span className="hidden shrink-0 text-right text-xs text-cs-faint xl:block">
+                    <span className="block font-semibold text-cs-ink tabular-nums">{money(v.paid_cents, 'USD')}</span>
+                    {v.invoices} invoice{v.invoices === 1 ? '' : 's'} · since {day(v.verified_at)}
+                  </span>
+                  <ChevronRight aria-hidden className="size-4 shrink-0 text-cs-faint group-hover:text-cs-ink" />
+                </Link>
               </li>
             ))}
           </ul>

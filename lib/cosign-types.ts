@@ -51,6 +51,8 @@ export type LedgerPayment = {
   payment_id: string;
   invoice_id: string;
   vendor_name: string;
+  /** The vendor record matched by name (active or deactivated), if any. */
+  vendor_id: string | null;
   vendor_known: boolean;
   invoice_number: string;
   amount: string;
@@ -106,7 +108,20 @@ export type DecisionResponse = {
   execution: string | null;
 };
 
-export type Vendor = { id: string; name: string; paypal_email: string; verified_at: string };
+export type Vendor = {
+  id: string;
+  name: string;
+  paypal_email: string;
+  verified_at: string;
+  /** Inactive vendors are off the approved list; their invoices wait for a signature. */
+  active: boolean;
+  updated_at: string;
+  invoices: number;
+  paid_cents: number;
+  last_invoice_at: string | null;
+};
+
+export type VendorUpdate = { name?: string; paypal_email?: string; active?: boolean; changed_by: string; reason?: string };
 
 export type MilestoneState = 'DRAFT' | 'FUNDED' | 'DELIVERED' | 'VERIFIED' | 'RELEASED' | 'VOIDED' | 'EXPIRED';
 

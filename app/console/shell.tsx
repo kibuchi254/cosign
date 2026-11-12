@@ -26,6 +26,7 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  Store,
   Sun,
   X,
   type LucideIcon,
@@ -96,7 +97,8 @@ export function Shell({
     {
       title: 'Controls',
       items: [
-        { href: '/console/mandate', label: 'Mandate and vendors', icon: ShieldCheck },
+        { href: '/console/mandate', label: 'Mandate', icon: ShieldCheck },
+        { href: '/console/vendors', label: 'Vendors', icon: Store },
         { href: '/console/audit', label: 'Audit log', icon: ScrollText },
         { href: '/console/report', label: 'Reports', icon: ChartColumn },
       ],
@@ -508,7 +510,7 @@ function NewMenu() {
           {[
             { href: '/console/invoices/new', label: 'Invoice', hint: 'Read it and decide' },
             { href: '/console/milestones#new-deal', label: 'Milestone deal', hint: 'Pay for work in stages' },
-            { href: '/console/mandate?tab=vendors', label: 'Approved vendor', hint: 'Who Cosign may pay' },
+            { href: '/console/vendors', label: 'Approved vendor', hint: 'Who Cosign may pay' },
             { href: '/console/mandate', label: 'New mandate', hint: 'Change your limits' },
           ].map((i) => (
             <li key={i.href}>

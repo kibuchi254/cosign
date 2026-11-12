@@ -133,6 +133,10 @@ def read_invoice_offline(text: str) -> dict:
     m = _first(r"(?:due\s+date|payment\s+due|due\s+by|due\s+on|pay\s+by)\s*[:\-]?\s*([^\n]+)", text)
     if m:
         due = parse_date(m.group(1))
+    if due is None:  # a bare "Due: 2026-12-10" line, common on short invoices and receipts
+        m = _first(r"^\s*due\s*[:\-]\s*([^\n]+)", text)
+        if m:
+            due = parse_date(m.group(1))
 
     payout = None
     for ln in lines:

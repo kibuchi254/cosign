@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import * as cosign from '@/lib/cosign';
 import { CosignError } from '@/lib/cosign';
 import { SESSION_COOKIE, verify } from '@/lib/session';
+import { canApproveVendor } from '@/lib/cosign-format';
 import type { DecisionResponse, MandateRules, ReadInvoiceResponse } from '@/lib/cosign-types';
 
 export type ActionState = { ok: boolean; message: string; warn?: boolean } | null;
@@ -41,9 +42,22 @@ export async function decidePayment(_: ActionState, form: FormData): Promise<Act
     if (verdict === 'deny' && !note) return { ok: false, message: 'Say why you are denying it. The reason goes in the audit log.' };
     const r = await cosign.approvePayment(str(form, 'payment_id'), verdict, approver, str(form, 'decision_hash'), note);
     const who = str(form, 'label');
+    // "Also approve this vendor": after signing, add them so their next routine invoice pays itself.
+    let vendorNote = '';
+    if (verdict === 'approve' && str(form, 'add_vendor') === '1') {
+      try {
+        // Name and email come from the held payment itself, never from the form.
+        const held = (await cosign.getLedger()).payments.find((p) => p.payment_id === str(form, 'payment_id'));
+        if (!held || !canApproveVendor(held)) throw new Error('this invoice is not from a plain new vendor');
+        const v = await cosign.createVendor(held.vendor_name, held.receiver_email);
+        vendorNote = ` ${v.name} is now an approved vendor.`;
+      } catch (e) {
+        vendorNote = ` The vendor was not added: ${e instanceof Error ? e.message : 'unknown error'}.`;
+      }
+    }
     return done(
       verdict === 'approve'
-        ? `${who} ${r.state === 'PAID' ? 'is paid.' : r.state === 'SUBMITTED' ? 'was sent to PayPal.' : `is ${r.state.toLowerCase()}. ${r.execution ?? ''}`}`
+        ? `${who} ${r.state === 'PAID' ? 'is paid.' : r.state === 'SUBMITTED' ? 'was sent to PayPal.' : `is ${r.state.toLowerCase()}. ${r.execution ?? ''}`}${vendorNote}`
         : `${who} was not paid.`,
     );
   } catch (e) {
@@ -182,6 +196,26 @@ export async function approveMe(_: PayMeState, form: FormData): Promise<PayMeSta
       email,
       amount: amount.toFixed(2),
     };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Edit, re-point or (de)activate a vendor. The signed-in person is recorded as the changer. */
+export async function editVendor(_: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    const changedBy = await signer();
+    const id = str(form, 'id');
+    const intent = str(form, 'intent');
+    const reason = str(form, 'reason');
+    if (intent === 'deactivate' || intent === 'reactivate') {
+      const v = await cosign.updateVendor(id, { active: intent === 'reactivate', changed_by: changedBy, reason });
+      return done(v.active ? `${v.name} is approved again.` : `${v.name} is deactivated. Its invoices now wait for your signature.`);
+    }
+    const name = str(form, 'name');
+    const email = str(form, 'email').toLowerCase();
+    const v = await cosign.updateVendor(id, { name: name || undefined, paypal_email: email || undefined, changed_by: changedBy, reason });
+    return done(`${v.name} saved. Payouts go only to ${v.paypal_email}.`);
   } catch (e) {
     return fail(e);
   }

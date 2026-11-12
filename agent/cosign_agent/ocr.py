@@ -67,13 +67,42 @@ def _lines(result) -> list[str]:
     return ["  ".join(x[3] for x in sorted(line, key=lambda x: x[2])) for line in lines]
 
 
+MAX_SIDE = 2400  # phone photos are often 4000+ px; this keeps small print legible and OCR fast
+
+
+def _prepare(data: bytes) -> bytes:
+    """Phone photos: apply the EXIF rotation (otherwise a portrait shot is read sideways) and
+    shrink very large images. Returns PNG bytes. Bytes Pillow cannot open are passed through."""
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return data
+    try:
+        img = Image.open(io.BytesIO(data))
+        img = ImageOps.exif_transpose(img)
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        if max(img.size) > MAX_SIDE:
+            img.thumbnail((MAX_SIDE, MAX_SIDE))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception as e:
+        raise Unreadable(f"this file is not an image Cosign can open (PNG, JPEG or WebP): {e}") from e
+
+
 def image_to_text(data: bytes) -> str:
     engine = _get_engine()
     try:
-        result = engine(data)
+        result = engine(_prepare(data))
+    except Unreadable:
+        raise
     except Exception as e:
         raise Unreadable(f"OCR could not read the image: {e}") from e
-    return "\n".join(_lines(result))
+    text = "\n".join(_lines(result))
+    if not text.strip():
+        raise Unreadable("no text was found in the image. Photograph the invoice flat, in good light, with the whole page in frame")
+    return text
 
 
 def pdf_pages_to_png(data: bytes, max_pages: int = MAX_PAGES) -> list[bytes]:
@@ -95,4 +124,13 @@ def pdf_pages_to_png(data: bytes, max_pages: int = MAX_PAGES) -> list[bytes]:
 
 
 def pdf_to_text_ocr(data: bytes) -> str:
-    return "\n\n".join(image_to_text(png) for png in pdf_pages_to_png(data))
+    pages = []
+    for png in pdf_pages_to_png(data):
+        try:
+            pages.append(image_to_text(png))
+        except Unreadable as e:
+            if not str(e).startswith("no text was found"):
+                raise  # a blank page (a cover, a back side) is skipped; anything else is an error
+    if not pages:
+        raise Unreadable("no text was found in this scanned PDF")
+    return "\n\n".join(pages)

@@ -178,9 +178,23 @@ pub async fn create_vendor(state: &AppState, input: VendorInput) -> Result<Vendo
         Err(sqlx::Error::Database(e)) if e.is_unique_violation() => return Err(ServiceError::Conflict(format!("vendor {name} already exists"))),
         Err(e) => return Err(e.into()),
     };
-    audit::append(&mut tx, "vendor.created", json!({ "vendor_id": id, "name": name, "payout_hash": policy::payout_hash(&email) })).await?;
+    // Earlier invoices from this vendor (typically the held one that led to approving it) are
+    // linked to the new record, so its history and totals are complete. Only invoices with the
+    // same name that asked to be paid at this exact email: anything else stays unlinked.
+    let linked = sqlx::query("UPDATE invoices SET vendor_id = $1 WHERE vendor_id IS NULL AND lower(trim(vendor_name)) = lower($2) AND lower(trim(payout_email)) = $3")
+        .bind(id)
+        .bind(&name)
+        .bind(&email)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+    audit::append(&mut tx, "vendor.created", json!({ "vendor_id": id, "name": name, "payout_hash": policy::payout_hash(&email), "linked_invoices": linked })).await?;
     tx.commit().await?;
-    Ok(VendorView { id, name, paypal_email: email, verified_at, active: true, updated_at: verified_at, invoices: 0, paid_cents: 0, last_invoice_at: None })
+    if linked == 0 {
+        return Ok(VendorView { id, name, paypal_email: email, verified_at, active: true, updated_at: verified_at, invoices: 0, paid_cents: 0, last_invoice_at: None });
+    }
+    let row = sqlx::query(&format!("{VENDOR_SELECT} WHERE v.id = $1 GROUP BY v.id")).bind(id).fetch_one(&state.pool).await?;
+    Ok(vendor_view(&row))
 }
 
 const VENDOR_SELECT: &str = "SELECT v.id, v.name, v.paypal_email, v.verified_at, v.active, v.updated_at,
@@ -357,12 +371,13 @@ pub async fn propose(state: &AppState, input: ProposalInput) -> Result<DecisionR
     sqlx::query("SELECT pg_advisory_xact_lock(hashtext('cosign-owner:' || $1))").bind(&owner).execute(&mut *tx).await?;
 
     let (mandate, _) = active_mandate(&mut tx, &owner).await?.ok_or_else(|| ServiceError::Conflict(format!("owner {owner} has no mandate")))?;
-    // Deactivated vendors are off the approved list: their invoices wait for a signature.
-    let vendors: Vec<VendorRecord> = sqlx::query("SELECT id, name, payout_hash FROM vendors WHERE active")
+    // Deactivated vendors stay in the list so their payout record is still enforced; the policy
+    // holds any invoice from one for a signature.
+    let vendors: Vec<VendorRecord> = sqlx::query("SELECT id, name, payout_hash, active FROM vendors")
         .fetch_all(&mut *tx)
         .await?
         .into_iter()
-        .map(|r| VendorRecord { id: r.get("id"), name: r.get("name"), payout_hash: r.get("payout_hash") })
+        .map(|r| VendorRecord { id: r.get("id"), name: r.get("name"), payout_hash: r.get("payout_hash"), active: r.get("active") })
         .collect();
     let prior: Vec<PriorInvoice> = sqlx::query("SELECT vendor_id, vendor_name, number, amount_cents, currency FROM invoices WHERE created_at > now() - interval '400 days'")
         .fetch_all(&mut *tx)
@@ -774,6 +789,8 @@ pub struct LedgerPayment {
     pub payment_id: Uuid,
     pub invoice_id: Uuid,
     pub vendor_name: String,
+    /// The vendor record this invoice matched by name (active or deactivated), if any.
+    pub vendor_id: Option<Uuid>,
     pub vendor_known: bool,
     pub invoice_number: String,
     pub amount: String,
@@ -825,6 +842,7 @@ pub async fn ledger(state: &AppState, owner: Option<String>) -> Result<Ledger> {
                 payment_id: r.get("id"),
                 invoice_id: r.get("invoice_id"),
                 vendor_name: r.get("vendor_name"),
+                vendor_id: r.get("vendor_id"),
                 vendor_known: r.get::<Option<Uuid>, _>("vendor_id").is_some(),
                 invoice_number: r.get("number"),
                 amount: Money { cents, currency: currency.clone() }.to_paypal_value(),

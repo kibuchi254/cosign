@@ -13,6 +13,7 @@ import type {
   ReadInvoiceResponse,
   Review,
   Vendor,
+  VendorUpdate,
   VerifyReport,
 } from './cosign-types';
 
@@ -71,6 +72,7 @@ export const verifyAudit = () => call<VerifyReport>(coreUrl(), '/v1/audit/verify
 export const getAudit = (limit = 500) => core<AuditEntry[]>(`/v1/audit?limit=${limit}`);
 export const getVendors = () => core<Vendor[]>('/v1/vendors');
 export const createVendor = (name: string, paypal_email: string) => core<Vendor>('/v1/vendors', { method: 'POST', body: { name, paypal_email } });
+export const updateVendor = (id: string, change: VendorUpdate) => core<Vendor>(`/v1/vendors/${id}`, { method: 'PATCH', body: change });
 export const getMandate = () => core<Mandate>('/v1/mandates/active');
 export const createMandate = (rules: MandateRules, expires_at: string) => core<Mandate>('/v1/mandates', { method: 'POST', body: { rules, expires_at } });
 export const health = () => call<{ ok: boolean; paypal: 'live' | 'simulated' }>(coreUrl(), '/healthz', undefined);

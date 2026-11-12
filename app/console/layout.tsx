@@ -11,12 +11,13 @@ const PAGES: SearchItem[] = [
   { group: 'Pages', label: 'Needs your signature', hint: 'Approvals', href: '/console/inbox' },
   { group: 'Pages', label: 'All payments', href: '/console/payments' },
   { group: 'Pages', label: 'Milestones', hint: 'Escrow', href: '/console/milestones' },
-  { group: 'Pages', label: 'Mandate and vendors', hint: 'Limits', href: '/console/mandate' },
+  { group: 'Pages', label: 'Mandate', hint: 'Spending limits', href: '/console/mandate' },
+  { group: 'Pages', label: 'Vendors', hint: 'Who Cosign may pay', href: '/console/vendors' },
   { group: 'Pages', label: 'Audit log', href: '/console/audit' },
   { group: 'Pages', label: 'Reports', href: '/console/report' },
   { group: 'Actions', label: 'Add an invoice', hint: 'Upload or paste', href: '/console/invoices/new' },
   { group: 'Actions', label: 'Start a milestone deal', href: '/console/milestones#new-deal' },
-  { group: 'Actions', label: 'Approve a vendor', href: '/console/mandate?tab=vendors' },
+  { group: 'Actions', label: 'Approve a vendor', href: '/console/vendors' },
   { group: 'Actions', label: 'Change your limits', href: '/console/mandate' },
 ];
 
@@ -68,7 +69,7 @@ export default async function ConsoleLayout({ children }: LayoutProps<'/console'
       hint: money(p.amount_cents, p.currency),
       href: `/console/payments?id=${p.payment_id}`,
     })),
-    ...vendors.map((v) => ({ group: 'Vendors' as const, label: v.name, hint: v.paypal_email, href: '/console/mandate?tab=vendors' })),
+    ...vendors.map((v) => ({ group: 'Vendors' as const, label: v.name, hint: v.active ? v.paypal_email : 'Inactive', href: `/console/vendors/${v.id}` })),
     ...deals.map((d) => ({ group: 'Deals' as const, label: d.title, hint: d.seller, href: `/console/milestones#${d.milestones[0]?.id ?? ''}` })),
   ];
 

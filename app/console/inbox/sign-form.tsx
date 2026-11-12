@@ -5,7 +5,20 @@ import { decidePayment } from '../actions';
 import { Submit, withToast } from '../client';
 import { inputClass } from '../ui';
 
-export function SignForm({ paymentId, decisionHash, amount, label }: { paymentId: string; decisionHash: string; amount: string; label: string }) {
+export function SignForm({
+  paymentId,
+  decisionHash,
+  amount,
+  label,
+  newVendor,
+}: {
+  paymentId: string;
+  decisionHash: string;
+  amount: string;
+  label: string;
+  /** Set when the only objection is a new vendor: offer to approve it while signing. */
+  newVendor?: { name: string; email: string };
+}) {
   const [denying, setDenying] = useState(false);
   return (
     <form action={withToast(decidePayment, denying ? 'Denied' : 'Approved and sent')} className="flex flex-col gap-3">
@@ -23,6 +36,15 @@ export function SignForm({ paymentId, decisionHash, amount, label }: { paymentId
           className={`${inputClass} mt-1`}
         />
       </label>
+      {newVendor && !denying && (
+        <label className="flex items-start gap-2.5 rounded-lg border border-cs-edge bg-cs-paper p-3 text-sm">
+          <input type="checkbox" name="add_vendor" value="1" className="mt-0.5 size-4 accent-[var(--cs-sign)]" />
+          <span>
+            <span className="block font-semibold">Also approve {newVendor.name} as a vendor</span>
+            <span className="block text-xs text-cs-soft">At {newVendor.email} only. Their next routine invoice is paid automatically. Only tick this if you have checked who they are.</span>
+          </span>
+        </label>
+      )}
       <div className="cs-signline pt-6" aria-hidden />
       <p className="-mt-1 text-xs text-cs-faint">Signing records your name with this decision.</p>
       {denying ? (

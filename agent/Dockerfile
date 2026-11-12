@@ -5,7 +5,11 @@ COPY pyproject.toml ./
 COPY cosign_agent ./cosign_agent
 COPY evals ./evals
 COPY replay ./replay
-RUN pip install --no-cache-dir . && useradd --system --uid 10002 agent
+# Loading the OCR engine once at build time proves its bundled models and native libraries work
+# in this image, so a photographed invoice never fails for the first time in front of a user.
+RUN pip install --no-cache-dir . \
+    && python -c "from rapidocr import RapidOCR; RapidOCR()" \
+    && useradd --system --uid 10002 agent
 USER agent
 ENV PORT=8000 COSIGN_LLM_MODE=replay
 EXPOSE 8000

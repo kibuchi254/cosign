@@ -57,6 +57,7 @@ All bodies are JSON. `agent` = `CORE_AGENT_TOKEN`, `operator` = `CORE_OPERATOR_T
 | `GET /v1/ledger` | operator | Payments, reasons, totals, mandate and audit status for the dashboard |
 | `POST /v1/mandates`, `GET /v1/mandates/active` | operator (GET: both) | Mandate versions; the newest is active |
 | `GET/POST /v1/vendors` | operator | Approved vendors and their payout emails |
+| `PATCH /v1/vendors/{id}` | operator | Rename, change payout email (needs `changed_by` and a verification `reason`), deactivate or reactivate; audited |
 | `GET /v1/audit` | operator | Recent audit entries |
 | `GET /v1/audit/verify` | none | Recompute the hash chain |
 | `POST /v1/payments/{id}/retry` | operator | Re-send a SUBMITTED payment whose outcome is unknown, with its original idempotency key |

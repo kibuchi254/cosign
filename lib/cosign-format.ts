@@ -64,6 +64,10 @@ export const MILESTONE_STATE: Record<MilestoneState, { label: string; tone: Tone
 export const AUDIT_KIND: Record<string, string> = {
   'mandate.created': 'Mandate signed',
   'vendor.created': 'Vendor approved',
+  'vendor.updated': 'Vendor edited',
+  'vendor.payout_changed': 'Vendor payout email changed',
+  'vendor.deactivated': 'Vendor deactivated',
+  'vendor.reactivated': 'Vendor reactivated',
   'payment.decided': 'Payment decided',
   'payment.submitted': 'Sent to PayPal',
   'payment.payout_accepted': 'PayPal accepted payout',
@@ -142,6 +146,11 @@ export function auditDetail(e: AuditEntry): string {
       return `${s('approver')} ${s('verdict') === 'approve' ? 'approved' : 'denied'}${s('note') ? `: ${s('note')}` : ''}`;
     case 'vendor.created':
       return s('name');
+    case 'vendor.updated':
+    case 'vendor.payout_changed':
+    case 'vendor.deactivated':
+    case 'vendor.reactivated':
+      return `${s('name')}, by ${s('changed_by')}${s('reason') ? `: ${s('reason')}` : ''}`;
     case 'deal.created':
       return `${s('title')} with ${s('seller')}`;
     case 'webhook.received': {
@@ -205,4 +214,11 @@ export function readerLabel(source: string): string {
   const m = /^live:([^:]+):(.+)$/.exec(source);
   if (m) return `${m[2]} via ${PROVIDER_NAME[m[1]] ?? m[1]}`;
   return source;
+}
+
+/** Offer "also approve this vendor" only for a plain new vendor: not a lookalike of one you
+ *  already pay, not a deactivated one, and nothing the agent objected to. */
+export function canApproveVendor(p: LedgerPayment): boolean {
+  const unknown = p.reasons.filter((r) => r.code === 'VENDOR_UNKNOWN');
+  return !p.vendor_known && unknown.length > 0 && unknown.every((r) => !/resembles/i.test(r.detail)) && p.reasons.every((r) => r.source !== 'agent');
 }

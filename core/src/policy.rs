@@ -190,6 +190,9 @@ pub struct VendorRecord {
     pub id: Uuid,
     pub name: String,
     pub payout_hash: String,
+    /// Deactivated vendors stay known, so an invoice naming one is still checked against its
+    /// payout record (a mismatch is blocked), but it is never paid without a signature.
+    pub active: bool,
 }
 
 /// Payout details are compared by hash so the vendor table never needs re-reading in clear.
@@ -271,6 +274,12 @@ pub fn evaluate(req: &PaymentRequest, ctx: &Context<'_>) -> Evaluation {
                 reasons.push(Reason::rule(
                     ReasonCode::PayoutDetailsChanged,
                     format!("payout email differs from the record for {}", v.name),
+                ));
+            }
+            if !v.active {
+                reasons.push(Reason::rule(
+                    ReasonCode::VendorUnknown,
+                    format!("{} was deactivated and is not on the approved vendor list", v.name),
                 ));
             }
         }
@@ -579,8 +588,8 @@ pub(crate) mod tests {
 
     pub fn vendors() -> Vec<VendorRecord> {
         vec![
-            VendorRecord { id: Uuid::from_u128(1), name: "Northwind Design Studio".into(), payout_hash: payout_hash("billing@northwind.example") },
-            VendorRecord { id: Uuid::from_u128(2), name: "Contoso Legal LLP".into(), payout_hash: payout_hash("accounts@contoso.example") },
+            VendorRecord { id: Uuid::from_u128(1), name: "Northwind Design Studio".into(), payout_hash: payout_hash("billing@northwind.example"), active: true },
+            VendorRecord { id: Uuid::from_u128(2), name: "Contoso Legal LLP".into(), payout_hash: payout_hash("accounts@contoso.example"), active: true },
         ]
     }
 
@@ -653,6 +662,25 @@ pub(crate) mod tests {
     fn velocity() {
         assert_eq!(run(&normal_request(), &[], 0, 4), Decision::Allow);
         assert_eq!(codes(&run(&normal_request(), &[], 0, 5)), vec![ReasonCode::Velocity]);
+    }
+
+    #[test]
+    fn deactivated_vendor_is_held_and_still_guards_its_payout() {
+        let m = mandate();
+        let mut v = vendors();
+        v[0].active = false;
+        let ctx = Context { now: now(), mandate: &m, vendors: &v, prior_invoices: &[], committed_today_cents: 0, payments_in_velocity_window: 0 };
+        // Right email: waits for a signature instead of paying itself.
+        let held = evaluate(&normal_request(), &ctx);
+        assert_eq!(codes(&held.decision), vec![ReasonCode::VendorUnknown]);
+        assert_eq!(held.decision.severity(), Severity::RequireApproval);
+        assert_eq!(held.vendor_id, Some(Uuid::from_u128(1)));
+        // Someone reusing the old vendor's name with new payout details is still blocked.
+        let mut req = normal_request();
+        req.payout_email = "new-bank@evil.example".into();
+        let blocked = evaluate(&req, &ctx).decision;
+        assert_eq!(blocked.severity(), Severity::Block);
+        assert!(codes(&blocked).contains(&ReasonCode::PayoutDetailsChanged));
     }
 
     #[test]

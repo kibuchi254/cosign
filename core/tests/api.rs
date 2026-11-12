@@ -334,10 +334,36 @@ async fn vendor_lifecycle_is_audited_and_drives_policy() {
     assert_eq!(v["invoices"], 2);
     let (_, held) = call(&state, "POST", "/v1/proposals", Some(AGENT), Some(proposal("Northwind Design Studio", "NW-2003", "100.00", "new@northwind.example", json!([])))).await;
     assert_eq!(held["decision"], "REQUIRE_APPROVAL");
+    // Deactivating does not open a hole: the old name with new payout details is still blocked.
+    let (_, spoof) = call(&state, "POST", "/v1/proposals", Some(AGENT), Some(proposal("Northwind Design Studio", "NW-2004", "100.00", "pay-here@evil.example", json!([])))).await;
+    assert_eq!(spoof["decision"], "BLOCK", "{spoof}");
+    // The ledger links each of these invoices to the vendor record.
+    let (_, ledger) = call(&state, "GET", "/v1/ledger", Some(OPERATOR), None).await;
+    let linked = ledger["payments"].as_array().unwrap().iter().filter(|p| p["vendor_id"] == id.as_str()).count();
+    assert_eq!(linked, 4);
 
     let (_, audit) = call(&state, "GET", "/v1/audit", Some(OPERATOR), None).await;
     let kinds: Vec<&str> = audit.as_array().unwrap().iter().map(|e| e["kind"].as_str().unwrap()).collect();
     assert!(kinds.contains(&"vendor.payout_changed") && kinds.contains(&"vendor.deactivated"), "{kinds:?}");
     let (_, verify) = call(&state, "GET", "/v1/audit/verify", Some(OPERATOR), None).await;
     assert_eq!(verify["ok"], true, "{verify}");
+}
+
+#[tokio::test]
+async fn approving_a_vendor_links_its_earlier_invoices() {
+    let state = state_or_skip!();
+    seed(&state, 500_000, 50).await;
+    let (_, held) = call(&state, "POST", "/v1/proposals", Some(AGENT), Some(proposal("Fabrikam Print Shop", "FP-1", "420.00", "orders@fabrikam.example", json!([])))).await;
+    assert_eq!(held["decision"], "REQUIRE_APPROVAL");
+    // Same name, different email: must not be linked to the new vendor.
+    let (_, other) = call(&state, "POST", "/v1/proposals", Some(AGENT), Some(proposal("Fabrikam Print Shop", "FP-2", "99.00", "elsewhere@evil.example", json!([])))).await;
+    assert_eq!(other["decision"], "REQUIRE_APPROVAL");
+    let (s, v) = call(&state, "POST", "/v1/vendors", Some(OPERATOR), Some(json!({ "name": "Fabrikam Print Shop", "paypal_email": "Orders@Fabrikam.example" }))).await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    assert_eq!(v["invoices"], 1, "{v}");
+    let id = v["id"].as_str().unwrap();
+    let (_, ledger) = call(&state, "GET", "/v1/ledger", Some(OPERATOR), None).await;
+    let linked: Vec<&str> =
+        ledger["payments"].as_array().unwrap().iter().filter(|p| p["vendor_id"] == id).map(|p| p["invoice_number"].as_str().unwrap()).collect();
+    assert_eq!(linked, vec!["FP-1"]);
 }

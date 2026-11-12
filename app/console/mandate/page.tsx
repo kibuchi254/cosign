@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { getMandate, getVendors } from '@/lib/cosign';
 import { CosignError } from '@/lib/cosign-error';
 import { day, when } from '@/lib/cosign-format';
 import type { Mandate } from '@/lib/cosign-types';
 import { CoreDown, Hash, PageHead } from '../ui';
-import { MandateForm, VendorDirectory } from './forms';
+import { MandateForm } from './forms';
 
-export const metadata: Metadata = { title: 'Mandate and vendors' };
+export const metadata: Metadata = { title: 'Mandate' };
 
 // A new mandate defaults to 90 days, long enough to cover judging.
 function inNinetyDays(): string {
@@ -19,7 +20,9 @@ function inNinetyDays(): string {
 
 export default async function MandatePage({ searchParams }: PageProps<'/console/mandate'>) {
   await connection();
-  const tab = (await searchParams).tab === 'vendors' ? 'vendors' : 'limits';
+  // Vendors have their own page now; old links to the tab still work.
+  if ((await searchParams).tab === 'vendors') redirect('/console/vendors');
+  const tab = 'limits';
   let mandate: Mandate | null = null;
   let vendors;
   try {
@@ -34,13 +37,13 @@ export default async function MandatePage({ searchParams }: PageProps<'/console/
   return (
     <div className="mx-auto max-w-6xl">
       <PageHead
-        title="Mandate and vendors"
+        title="Mandate"
         lede="What Cosign may do without asking you, and who it may pay. Anything outside these lines waits for your signature."
       />
       <div role="tablist" aria-label="Section" className="mb-6 flex gap-1 border-b border-cs-edge">
         {[
           { key: 'limits', label: 'Spending limits', href: '/console/mandate' },
-          { key: 'vendors', label: `Approved vendors (${vendors.length})`, href: '/console/mandate?tab=vendors' },
+          { key: 'vendors', label: `Approved vendors (${vendors.filter((v) => v.active).length})`, href: '/console/vendors' },
         ].map((t) => (
           <Link
             key={t.key}
@@ -53,20 +56,14 @@ export default async function MandatePage({ searchParams }: PageProps<'/console/
           </Link>
         ))}
       </div>
-      {tab === 'limits' ? (
-        <>
-          {mandate ? (
-            <p className="mb-4 text-sm text-cs-soft">
-              Current mandate <Hash value={mandate.hash} n={16} />, signed {when(mandate.created_at)}, valid until {day(mandate.expires_at)}. Signing a new one keeps this one in the audit log, and every decision cites the hash of the mandate it used.
-            </p>
-          ) : (
-            <p className="mb-4 text-sm font-semibold text-cs-held">You have no mandate yet, so Cosign will not pay anything. Sign one below.</p>
-          )}
-          <MandateForm mandate={mandate} defaultExpiry={(mandate?.expires_at ?? inNinetyDays()).slice(0, 10)} />
-        </>
+      {mandate ? (
+        <p className="mb-4 text-sm text-cs-soft">
+          Current mandate <Hash value={mandate.hash} n={16} />, signed {when(mandate.created_at)}, valid until {day(mandate.expires_at)}. Signing a new one keeps this one in the audit log, and every decision cites the hash of the mandate it used.
+        </p>
       ) : (
-        <VendorDirectory vendors={vendors} />
+        <p className="mb-4 text-sm font-semibold text-cs-held">You have no mandate yet, so Cosign will not pay anything. Sign one below.</p>
       )}
+      <MandateForm mandate={mandate} defaultExpiry={(mandate?.expires_at ?? inNinetyDays()).slice(0, 10)} />
     </div>
   );
 }

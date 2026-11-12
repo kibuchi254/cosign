@@ -369,3 +369,66 @@ def test_text_pdf_skips_ocr(monkeypatch):
 
     text, _, via = decode_document(None, base64.b64encode(b"%PDF-1.4 fake").decode())
     assert via is None and "NW-1042" in text
+
+
+@ocr_ready
+def test_rotated_phone_photo_is_turned_upright_before_ocr():
+    """Phones save portrait shots sideways and record the rotation in EXIF."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    from cosign_agent.extract import decode_document
+
+    upright = Image.open(io.BytesIO(_invoice_image("PNG")))
+    sideways = upright.rotate(90, expand=True)  # what the sensor stored
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation: rotate 90 CW to display
+    buf = io.BytesIO()
+    sideways.save(buf, format="JPEG", quality=92, exif=exif)
+    text, _, via = decode_document(None, None, base64.b64encode(buf.getvalue()).decode())
+    assert via == "ocr"
+    fields, _, _, error = read_invoice(text)
+    assert error is None and fields is not None and fields.invoice_number == "NW-1042"
+
+
+@ocr_ready
+def test_blank_photo_says_what_to_do():
+    import base64
+    import io
+
+    from PIL import Image
+
+    from cosign_agent.extract import decode_document
+    from cosign_agent.llm import Unreadable
+
+    buf = io.BytesIO()
+    Image.new("RGB", (800, 600), "white").save(buf, format="PNG")
+    with pytest.raises(Unreadable, match="no text was found"):
+        decode_document(None, None, base64.b64encode(buf.getvalue()).decode())
+    with pytest.raises(Unreadable, match="not an image"):
+        decode_document(None, None, base64.b64encode(b"definitely not an image").decode())
+
+
+@ocr_ready
+def test_scanned_pdf_with_a_blank_page_is_still_read():
+    import base64
+    import io
+
+    from PIL import Image
+
+    from cosign_agent.extract import decode_document
+
+    page = Image.open(io.BytesIO(_invoice_image("PNG"))).convert("RGB")
+    blank = Image.new("RGB", page.size, "white")
+    buf = io.BytesIO()
+    page.save(buf, format="PDF", save_all=True, append_images=[blank])
+    text, _, via = decode_document(None, base64.b64encode(buf.getvalue()).decode())
+    assert via == "ocr" and "NW-1042" in text
+
+
+def test_bare_due_line_is_read_but_total_due_is_not_a_date():
+    fields, _, _, error = read_invoice("From: Fabrikam Print Shop\nInvoice No: FP-0311\nDue: 2026-12-10\nTotal due: USD 420.00\nPay to (PayPal): orders@fabrikam.example")
+    assert error is None and fields is not None
+    assert str(fields.due_date) == "2026-12-10" and str(fields.amount) == "420.00"

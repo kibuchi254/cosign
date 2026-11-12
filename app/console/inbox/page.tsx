@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { connection } from 'next/server';
 import { ArrowLeft, Landmark, ShieldCheck, Sparkles } from 'lucide-react';
 import { getDeals, getLedger, reviewPayment } from '@/lib/cosign';
-import { ago, day, money, when } from '@/lib/cosign-format';
+import { ago, day, money, when, canApproveVendor } from '@/lib/cosign-format';
 import type { LedgerPayment, Review } from '@/lib/cosign-types';
 import { Avatar, Card, CoreDown, Empty, Hash, PageHead, Reasons, Stamp } from '../ui';
 import { InboxList } from './inbox-list';
@@ -116,6 +116,15 @@ function Detail({ p, review }: { p: LedgerPayment; review: Review | null }) {
                 {p.due_date ? `, due ${day(p.due_date)}` : ', no due date'}
               </p>
               {!p.vendor_known && <p className="mt-1 text-xs font-semibold text-cs-held">Not on your approved vendor list</p>}
+              {p.vendor_id && p.reasons.some((r) => r.code === 'VENDOR_UNKNOWN') && (
+                <p className="mt-1 text-xs font-semibold text-cs-held">
+                  This vendor is deactivated.{' '}
+                  <Link href={`/console/vendors/${p.vendor_id}`} className="text-cs-sign underline">
+                    Open the vendor
+                  </Link>{' '}
+                  to approve it again.
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold tabular-nums">{money(p.amount_cents, p.currency)}</p>
@@ -156,7 +165,14 @@ function Detail({ p, review }: { p: LedgerPayment; review: Review | null }) {
           </p>
         </div>
         <div className="border-t border-cs-rule bg-cs-panel p-5 xl:rounded-r-xl xl:border-t-0 xl:border-l">
-          <SignForm key={p.payment_id} paymentId={p.payment_id} decisionHash={p.decision_hash} amount={money(p.amount_cents, p.currency)} label={`${p.vendor_name} invoice ${p.invoice_number}`} />
+          <SignForm
+            key={p.payment_id}
+            paymentId={p.payment_id}
+            decisionHash={p.decision_hash}
+            amount={money(p.amount_cents, p.currency)}
+            label={`${p.vendor_name} invoice ${p.invoice_number}`}
+            newVendor={canApproveVendor(p) ? { name: p.vendor_name, email: p.receiver_email } : undefined}
+          />
         </div>
       </div>
     </Card>
