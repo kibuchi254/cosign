@@ -18,6 +18,8 @@ import {
   Menu,
   Milestone,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   ReceiptText,
   ScrollText,
@@ -102,11 +104,13 @@ export function Shell({
   ];
   const isActive = (href: string) => (href === '/console' ? path === '/console' : path.startsWith(href));
 
-  const nav = (
-    <nav aria-label="Console" className="flex flex-col gap-5 px-3">
-      {groups.map((g) => (
+  // `rail` marks the desktop copy, which can collapse to icons; the phone drawer never does.
+  const renderNav = (rail: boolean) => (
+    <nav aria-label="Console" className={`flex flex-col gap-5 px-3 ${rail ? 'collapsed:gap-2 collapsed:px-2' : ''}`}>
+      {groups.map((g, gi) => (
         <div key={g.title}>
-          <p className="px-3 pb-1.5 text-xs font-semibold text-cs-faint">{g.title}</p>
+          <p className={`px-3 pb-1.5 text-xs font-semibold text-cs-faint ${rail ? 'collapsed:hidden' : ''}`}>{g.title}</p>
+          {rail && gi > 0 && <div aria-hidden className="mx-2 mb-2 hidden border-t border-cs-rule collapsed:block" />}
           <ul className="space-y-0.5">
             {g.items.map((item) => {
               const active = isActive(item.href);
@@ -117,15 +121,29 @@ export function Shell({
                     href={item.href}
                     onClick={() => setDrawerOpen(false)}
                     aria-current={active ? 'page' : undefined}
-                    className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
+                    aria-label={item.count ? `${item.label}, ${item.count} waiting` : item.label}
+                    className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
                       active ? 'bg-cs-sign-wash font-semibold text-cs-sign-deep' : 'text-cs-soft hover:bg-cs-hover hover:text-cs-ink'
-                    }`}
+                    } ${rail ? 'collapsed:h-10 collapsed:justify-center collapsed:px-0' : ''}`}
                   >
-                    <Icon aria-hidden className={`size-[18px] ${active ? 'text-cs-sign' : 'text-cs-faint group-hover:text-cs-soft'}`} />
-                    <span className="flex-1">{item.label}</span>
+                    <Icon aria-hidden className={`size-[18px] shrink-0 ${active ? 'text-cs-sign' : 'text-cs-faint group-hover:text-cs-soft'}`} />
+                    <span className={`flex-1 truncate ${rail ? 'collapsed:hidden' : ''}`}>{item.label}</span>
                     {!!item.count && (
-                      <span className="rounded-full bg-cs-held px-2 py-px text-xs font-bold text-cs-on-accent tabular-nums" aria-label={`${item.count} waiting`}>
+                      <span
+                        aria-hidden
+                        className={`rounded-full bg-cs-held px-2 py-px text-xs font-bold text-cs-on-accent tabular-nums ${
+                          rail ? 'collapsed:absolute collapsed:top-0.5 collapsed:right-0.5 collapsed:px-1.5 collapsed:text-[10px]' : ''
+                        }`}
+                      >
                         {item.count}
+                      </span>
+                    )}
+                    {rail && (
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute top-1/2 left-full z-50 ml-3 hidden -translate-y-1/2 rounded-md bg-cs-ink px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-cs-paper opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 collapsed:block"
+                      >
+                        {item.label}
                       </span>
                     )}
                   </Link>
@@ -138,25 +156,23 @@ export function Shell({
     </nav>
   );
 
-  const sidebarFoot = (
-    <div className="space-y-2.5 border-t border-cs-rule px-3 py-3">
-      <MandateCard mandate={mandate} onNavigate={() => setDrawerOpen(false)} />
-      {simulation !== null && <RailStatus simulation={simulation} />}
-    </div>
-  );
-
   return (
     <div className="cosign flex min-h-dvh">
-      {/* Desktop sidebar */}
-      <div className="hidden w-64 shrink-0 border-r border-cs-edge bg-cs-paper lg:block">
-      <aside className="sticky top-0 flex h-dvh flex-col">
-        <Link href="/console" className="flex items-center gap-2.5 px-6 pt-6 pb-6">
-          <Logo />
-          <span className="text-lg font-extrabold tracking-tight">Cosign</span>
-        </Link>
-        <div className="cs-scroll min-h-0 flex-1 overflow-y-auto pb-4">{nav}</div>
-        {sidebarFoot}
-      </aside>
+      {/* Desktop sidebar: full width or an icon rail, remembered per browser. */}
+      <div className="hidden w-64 shrink-0 border-r border-cs-edge bg-cs-paper transition-[width] duration-200 lg:block collapsed:w-[72px]">
+        <aside className="sticky top-0 flex h-dvh flex-col">
+          <div className="flex h-16 items-center justify-between gap-2 px-5 collapsed:justify-center collapsed:px-0">
+            <Link href="/console" className="flex items-center gap-2.5" aria-label="Cosign overview">
+              <Logo />
+              <span className="text-lg font-extrabold tracking-tight collapsed:hidden">Cosign</span>
+            </Link>
+          </div>
+          <div className="cs-scroll min-h-0 flex-1 overflow-y-auto pt-2 pb-4 collapsed:overflow-visible">{renderNav(true)}</div>
+          <div className="space-y-1 border-t border-cs-rule px-3 py-3 collapsed:px-2">
+            {simulation !== null && <RailStatus simulation={simulation} rail />}
+            <CollapseButton />
+          </div>
+        </aside>
       </div>
 
       {/* Mobile drawer */}
@@ -172,8 +188,12 @@ export function Shell({
                 <X className="size-5" />
               </button>
             </div>
-            <div className="cs-scroll min-h-0 flex-1 overflow-y-auto pb-4">{nav}</div>
-            {sidebarFoot}
+            <div className="cs-scroll min-h-0 flex-1 overflow-y-auto pb-4">{renderNav(false)}</div>
+            {simulation !== null && (
+              <div className="border-t border-cs-rule px-3 py-3">
+                <RailStatus simulation={simulation} rail={false} />
+              </div>
+            )}
           </aside>
         </div>
       )}
@@ -194,6 +214,7 @@ export function Shell({
           </button>
           <div className="ml-auto flex items-center gap-1.5">
             <NewMenu />
+            <MandateMenu mandate={mandate} />
             <Notifications notices={notices} />
             <ThemeToggle />
             <UserMenu user={user} logout={logout} />
@@ -228,101 +249,197 @@ export function Shell({
   );
 }
 
-// --- Mandate card -------------------------------------------------------------------------------
+// --- Sidebar collapse ---------------------------------------------------------------------------
 
-const DAY_MS = 86_400_000;
+const subscribeSidebar = (cb: () => void) => {
+  const o = new MutationObserver(cb);
+  o.observe(document.documentElement, { attributes: true, attributeFilter: ['data-sidebar'] });
+  return () => o.disconnect();
+};
 
-/** The signed spending mandate, shown like an account limit: today's usage against the daily
- *  cap, the per-invoice ceiling and the velocity rule, with the hash every decision quotes. */
-function MandateCard({ mandate, onNavigate }: { mandate: MandateSummary | null; onNavigate: () => void }) {
-  // One "now" per mount; days-left only needs day precision.
-  const [now] = useState(() => Date.now());
-  if (!mandate) {
-    return (
-      <Link href="/console/mandate" onClick={onNavigate} className="flex items-center gap-3 rounded-xl border border-dashed border-cs-blocked bg-cs-paper px-3 py-3 text-xs hover:bg-cs-hover">
-        <ShieldAlert aria-hidden className="size-5 shrink-0 text-cs-blocked" />
-        <span>
-          <span className="block font-semibold text-cs-ink">No active mandate</span>
-          <span className="text-cs-soft">Cosign pays nothing until you sign one.</span>
-        </span>
-      </Link>
-    );
-  }
-  const m = mandate;
-  const pct = m.dailyCapCents > 0 ? Math.min(100, (m.usedTodayCents / m.dailyCapCents) * 100) : 0;
-  const daysLeft = Math.max(0, Math.ceil((new Date(m.expiresAt).getTime() - now) / DAY_MS));
-  const expiring = daysLeft <= 14;
-  const bar = pct >= 90 ? 'bg-cs-blocked' : pct >= 70 ? 'bg-cs-held' : 'bg-cs-cleared';
-  const remaining = Math.max(0, m.dailyCapCents - m.usedTodayCents);
+function toggleSidebar() {
+  const el = document.documentElement;
+  const collapse = el.dataset.sidebar !== 'collapsed';
+  if (collapse) el.dataset.sidebar = 'collapsed';
+  else delete el.dataset.sidebar;
+  try {
+    localStorage.setItem('cosign-sidebar', collapse ? 'collapsed' : 'expanded');
+  } catch {}
+}
 
+/** Collapses the desktop sidebar to an icon rail. Also on the "[" key, as in most SaaS consoles. */
+function CollapseButton() {
+  const collapsed = useSyncExternalStore(subscribeSidebar, () => document.documentElement.dataset.sidebar === 'collapsed', () => false);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      toggleSidebar();
+    };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, []);
+  const Icon = collapsed ? PanelLeftOpen : PanelLeftClose;
   return (
-    <Link
-      href="/console/mandate"
-      onClick={onNavigate}
-      aria-label={`Spending mandate: ${money(m.usedTodayCents, m.currency)} of ${money(m.dailyCapCents, m.currency)} used today. Manage limits.`}
-      className="group block overflow-hidden rounded-xl border border-cs-edge bg-cs-paper transition-shadow hover:shadow-[var(--cs-shadow-lift)]"
-      style={{ boxShadow: 'var(--cs-shadow)' }}
+    <button
+      type="button"
+      onClick={toggleSidebar}
+      aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      title={`${collapsed ? 'Expand' : 'Collapse'} sidebar  [`}
+      className="flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm text-cs-soft hover:bg-cs-hover hover:text-cs-ink collapsed:justify-center collapsed:px-0"
     >
-      <div className="flex items-center justify-between gap-2 bg-cs-sign px-3 py-2 text-cs-on-accent">
-        <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-[0.06em] whitespace-nowrap uppercase">
-          <ShieldCheck aria-hidden className="size-3.5 shrink-0" /> Mandate
-        </span>
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap">
-          <span className={`size-1.5 rounded-full ${expiring ? 'bg-amber-300' : 'bg-emerald-300'}`} aria-hidden />
-          {expiring ? 'Renew soon' : 'Active'}
-        </span>
-      </div>
-
-      <div className="px-3 pt-3">
-        <p className="text-[10px] font-semibold tracking-[0.08em] text-cs-faint uppercase">Used today</p>
-        <p className="mt-0.5 flex items-baseline gap-1.5">
-          <span className="text-lg font-bold tracking-tight text-cs-ink tabular-nums">{money(m.usedTodayCents, m.currency)}</span>
-          <span className="text-[11px] text-cs-faint tabular-nums">of {money(m.dailyCapCents, m.currency)}</span>
-        </p>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cs-rule" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label="Daily cap used">
-          <div className={`h-full rounded-full ${bar} transition-[width] duration-500`} style={{ width: `${pct > 0 ? Math.max(pct, 3) : 0}%` }} />
-        </div>
-        <p className="mt-1 text-[11px] text-cs-soft tabular-nums">{money(remaining, m.currency)} left today</p>
-      </div>
-
-      <dl className="mx-3 mt-3 divide-y divide-cs-rule border-y border-cs-rule text-[11.5px]">
-        {[
-          ['Per invoice', money(m.perInvoiceCents, m.currency), false],
-          ['Velocity', m.velocity, false],
-          ['Valid until', `${m.expiresLabel}${expiring ? ` · ${daysLeft}d` : ''}`, expiring],
-        ].map(([k, v, warn]) => (
-          <div key={String(k)} className="flex items-center justify-between gap-2 py-1.5">
-            <dt className="text-cs-soft">{k}</dt>
-            <dd className={`font-semibold tabular-nums ${warn ? 'text-cs-held' : 'text-cs-ink'}`}>{v}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <div className="flex items-center justify-between px-3 py-2 text-[11px]">
-        <span className="font-cs-mono text-cs-faint" title={`Mandate hash ${m.hash}`}>
-          sig {m.hash.slice(0, 8)}
-        </span>
-        <span className="flex items-center gap-0.5 font-semibold text-cs-sign group-hover:text-cs-sign-deep">
-          Manage <ChevronRight aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-        </span>
-      </div>
-    </Link>
+      <Icon aria-hidden className="size-[18px] shrink-0 text-cs-faint" />
+      <span className="flex-1 text-left collapsed:hidden">Collapse</span>
+      <kbd className="rounded border border-cs-edge px-1.5 font-sans text-[11px] text-cs-faint collapsed:hidden">[</kbd>
+    </button>
   );
 }
 
-function RailStatus({ simulation }: { simulation: boolean }) {
+// --- Mandate (top bar) --------------------------------------------------------------------------
+
+const DAY_MS = 86_400_000;
+
+function mandateFacts(m: MandateSummary, now: number) {
+  const pct = m.dailyCapCents > 0 ? Math.min(100, (m.usedTodayCents / m.dailyCapCents) * 100) : 0;
+  const daysLeft = Math.max(0, Math.ceil((new Date(m.expiresAt).getTime() - now) / DAY_MS));
+  return {
+    pct,
+    daysLeft,
+    expiring: daysLeft <= 14,
+    remaining: Math.max(0, m.dailyCapCents - m.usedTodayCents),
+    bar: pct >= 90 ? 'bg-cs-blocked' : pct >= 70 ? 'bg-cs-held' : 'bg-cs-cleared',
+    ring: pct >= 90 ? 'var(--cs-blocked)' : pct >= 70 ? 'var(--cs-held)' : 'var(--cs-cleared)',
+  };
+}
+
+/** The signed spending mandate behind a top-bar button: a ring shows how much of today's cap is
+ *  used, and the panel reads like an account limit with the hash every decision quotes. */
+function MandateMenu({ mandate }: { mandate: MandateSummary | null }) {
+  const [now] = useState(() => Date.now());
+  const f = mandate ? mandateFacts(mandate, now) : null;
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-cs-edge bg-cs-panel px-3 py-2">
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#003087] text-[11px] font-extrabold text-white" aria-hidden>
+    <Popover
+      label="Spending mandate"
+      wide
+      button={(open, toggle) => (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-label={mandate && f ? `Spending mandate, ${Math.round(f.pct)}% of today's cap used` : 'No active mandate'}
+          title="Spending mandate"
+          className={`${iconButton} ${open ? 'bg-cs-hover text-cs-ink' : ''}`}
+        >
+          {mandate && f ? (
+            <span className="relative flex size-7 items-center justify-center">
+              <svg viewBox="0 0 28 28" className="absolute inset-0 -rotate-90" aria-hidden>
+                <circle cx="14" cy="14" r="12" fill="none" stroke="var(--cs-rule)" strokeWidth="2.5" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="12"
+                  fill="none"
+                  stroke={f.ring}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(f.pct / 100) * 75.4} 75.4`}
+                />
+              </svg>
+              <ShieldCheck className="size-3.5" />
+            </span>
+          ) : (
+            <ShieldAlert className="size-5 text-cs-blocked" />
+          )}
+          {f?.expiring && <span className="absolute top-2 right-2 size-2 rounded-full bg-cs-held ring-2 ring-cs-paper" />}
+        </button>
+      )}
+    >
+      {(close) =>
+        !mandate || !f ? (
+          <div className="p-4 text-sm">
+            <p className="flex items-center gap-2 font-semibold text-cs-ink">
+              <ShieldAlert aria-hidden className="size-4 text-cs-blocked" /> No active mandate
+            </p>
+            <p className="mt-1 text-cs-soft">Cosign pays nothing until you sign one.</p>
+            <Link href="/console/mandate" onClick={close} className="mt-3 inline-flex h-9 items-center rounded-lg bg-cs-sign px-3.5 text-sm font-semibold text-cs-on-accent hover:bg-cs-sign-deep">
+              Sign a mandate
+            </Link>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between gap-2 bg-cs-sign px-4 py-2.5 text-cs-on-accent">
+              <span className="flex items-center gap-1.5 text-xs font-bold tracking-[0.06em] whitespace-nowrap uppercase">
+                <ShieldCheck aria-hidden className="size-4 shrink-0" /> Spending mandate
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap">
+                <span className={`size-1.5 rounded-full ${f.expiring ? 'bg-amber-300' : 'bg-emerald-300'}`} aria-hidden />
+                {f.expiring ? 'Renew soon' : 'Active'}
+              </span>
+            </div>
+
+            <div className="px-4 pt-4">
+              <p className="text-[11px] font-semibold tracking-[0.06em] text-cs-faint uppercase">Used today</p>
+              <p className="mt-0.5 flex items-baseline gap-2">
+                <span className="text-2xl font-bold tracking-tight text-cs-ink tabular-nums">{money(mandate.usedTodayCents, mandate.currency)}</span>
+                <span className="text-sm text-cs-faint tabular-nums">of {money(mandate.dailyCapCents, mandate.currency)}</span>
+              </p>
+              <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-cs-rule" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(f.pct)} aria-label="Daily cap used">
+                <div className={`h-full rounded-full ${f.bar}`} style={{ width: `${f.pct > 0 ? Math.max(f.pct, 2) : 0}%` }} />
+              </div>
+              <p className="mt-1.5 text-xs text-cs-soft tabular-nums">
+                {money(f.remaining, mandate.currency)} left today. Above that, new bills wait for your signature.
+              </p>
+            </div>
+
+            <dl className="mx-4 mt-4 divide-y divide-cs-rule border-y border-cs-rule text-sm">
+              {(
+                [
+                  ['Per invoice', money(mandate.perInvoiceCents, mandate.currency), false],
+                  ['Velocity', mandate.velocity, false],
+                  ['Valid until', `${mandate.expiresLabel}${f.expiring ? ` (${f.daysLeft} days)` : ''}`, f.expiring],
+                ] as const
+              ).map(([k, v, warn]) => (
+                <div key={k} className="flex items-center justify-between gap-3 py-2">
+                  <dt className="text-cs-soft">{k}</dt>
+                  <dd className={`font-semibold tabular-nums ${warn ? 'text-cs-held' : 'text-cs-ink'}`}>{v}</dd>
+                </div>
+              ))}
+            </dl>
+
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="font-cs-mono text-xs text-cs-faint" title={`Mandate hash ${mandate.hash}`}>
+                sig {mandate.hash.slice(0, 12)}
+              </span>
+              <Link href="/console/mandate" onClick={close} className="inline-flex h-8 items-center gap-1 rounded-lg bg-cs-sign-wash px-3 text-xs font-semibold text-cs-sign-deep hover:bg-cs-hover">
+                Manage limits <ChevronRight aria-hidden className="size-3.5" />
+              </Link>
+            </div>
+          </div>
+        )
+      }
+    </Popover>
+  );
+}
+
+function RailStatus({ simulation, rail }: { simulation: boolean; rail: boolean }) {
+  const label = simulation ? 'Simulation mode: payouts are simulated' : 'PayPal sandbox: live API, test money';
+  return (
+    <div
+      title={label}
+      className={`flex items-center gap-2.5 rounded-lg px-3 py-1.5 ${rail ? 'collapsed:justify-center collapsed:px-0' : ''}`}
+    >
+      <span className="relative flex size-7 shrink-0 items-center justify-center rounded-md bg-[#003087] text-[11px] font-extrabold text-white" aria-hidden>
         P
+        <span className="absolute -top-0.5 -right-0.5 flex size-2.5">
+          {!simulation && <span className="absolute inline-flex size-full animate-ping rounded-full bg-cs-cleared opacity-60" />}
+          <span className={`relative inline-flex size-2.5 rounded-full ring-2 ring-cs-paper ${simulation ? 'bg-cs-held' : 'bg-cs-cleared'}`} />
+        </span>
       </span>
-      <span className="min-w-0 flex-1 leading-tight">
-        <span className="block text-xs font-semibold text-cs-ink">{simulation ? 'Simulation mode' : 'PayPal sandbox'}</span>
-        <span className="block truncate text-[11px] text-cs-faint">{simulation ? 'Payouts are simulated' : 'Live API, test money'}</span>
-      </span>
-      <span className="relative flex size-2" role="img" aria-label={simulation ? 'Simulated' : 'Connected'}>
-        {!simulation && <span className="absolute inline-flex size-full animate-ping rounded-full bg-cs-cleared opacity-60" />}
-        <span className={`relative inline-flex size-2 rounded-full ${simulation ? 'bg-cs-held' : 'bg-cs-cleared'}`} />
+      <span className={`min-w-0 flex-1 leading-tight ${rail ? 'collapsed:hidden' : ''}`}>
+        <span className="sr-only">{label}</span>
+        <span aria-hidden className="block text-xs font-semibold text-cs-ink">{simulation ? 'Simulation mode' : 'PayPal sandbox'}</span>
+        <span aria-hidden className="block truncate text-[11px] text-cs-faint">{simulation ? 'Payouts are simulated' : 'Live API, test money'}</span>
       </span>
     </div>
   );
