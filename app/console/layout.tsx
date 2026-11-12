@@ -42,10 +42,10 @@ export default async function ConsoleLayout({ children }: LayoutProps<'/console'
       : []),
   ];
 
-  // What the daily cap has already absorbed today (UTC): paid or on its way to PayPal.
+  // What the daily cap has already absorbed today (UTC); same rule as the Overview's spend.
   const todayUtc = new Date().toISOString().slice(0, 10);
   const usedToday = (ledger?.payments ?? [])
-    .filter((p) => (p.state === 'PAID' || p.state === 'SUBMITTED') && p.created_at.slice(0, 10) === todayUtc)
+    .filter((p) => ['ALLOWED', 'APPROVED', 'SUBMITTED', 'PAID'].includes(p.state) && p.created_at.slice(0, 10) === todayUtc)
     .reduce((sum, p) => sum + p.amount_cents, 0);
   const mandate: MandateSummary | null = m
     ? {

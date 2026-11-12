@@ -7,9 +7,8 @@ import { UploadForm } from './upload-form';
 export const metadata: Metadata = { title: 'Add an invoice' };
 
 export default async function NewInvoice() {
-  const mandate = await getLedger()
-    .then((l) => l.mandate)
-    .catch(() => undefined);
+  const ledger = await getLedger().catch(() => undefined);
+  const mandate = ledger ? ledger.mandate : undefined;
   return (
     <div className="mx-auto max-w-7xl">
       <PageHead
@@ -26,7 +25,7 @@ export default async function NewInvoice() {
           <ButtonLink href="/console/mandate">Set your limits</ButtonLink>
         </div>
       )}
-      <UploadForm />
+      <UploadForm live={ledger ? !ledger.simulation : false} />
     </div>
   );
 }

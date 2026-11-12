@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { CircleCheck, FileText, FileUp, Inbox, LoaderCircle, Plus, ReceiptText, ShieldAlert, Sparkles, UploadCloud, X } from 'lucide-react';
 import { moneyStr, OUTCOME, PAYMENT_STATE, day, readerLabel } from '@/lib/cosign-format';
@@ -10,6 +10,7 @@ import { submitInvoice } from '../../actions';
 import { Submit } from '../../client';
 import { toast } from '../../toast';
 import { Card, ErrorNote, Hash, inputClass, Reasons, Stamp } from '../../ui';
+import { PayMe } from './pay-me';
 
 const due = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 const suffix = () => String(Math.floor(1000 + Math.random() * 9000));
@@ -89,7 +90,7 @@ function Progress() {
   );
 }
 
-export function UploadForm() {
+export function UploadForm({ live = false }: { live?: boolean }) {
   const [state, action] = useActionState(submitInvoice, null);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -122,8 +123,17 @@ export function UploadForm() {
     setFile(null);
   };
 
+  const fillFromPayMe = useCallback((t: string) => {
+    setText(t);
+    if (fileRef.current) fileRef.current.value = '';
+    setFile(null);
+    formRef.current?.querySelector('textarea')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="space-y-5">
+      <PayMe live={live} onFill={fillFromPayMe} />
       <form ref={formRef} action={action} className="space-y-5">
         <Card className="p-5">
           <p className="text-sm font-bold">Start with a sample</p>
@@ -208,6 +218,7 @@ export function UploadForm() {
           </div>
         </Card>
       </form>
+      </div>
 
       <div aria-live="polite" className="xl:sticky xl:top-24">
         {!result ? (

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { connection } from 'next/server';
 import { ArrowUpRight, Ban, CircleCheck, FileUp, Hourglass, Landmark, ShieldCheck, TrendingDown, TrendingUp } from 'lucide-react';
-import { getAudit, getDeals, getLedger, getVendors } from '@/lib/cosign';
+import { getAudit, getDeals, getLedger } from '@/lib/cosign';
 import { ago, AUDIT_KIND, auditDetail, auditTone, money, REASON_LABEL, type Tone } from '@/lib/cosign-format';
 import type { ReactNode } from 'react';
 import type { LedgerPayment, ReasonCode } from '@/lib/cosign-types';
@@ -19,9 +19,9 @@ const COMMITTED = new Set(['ALLOWED', 'APPROVED', 'SUBMITTED', 'PAID']);
 
 export default async function Overview() {
   await connection();
-  let ledger, deals, vendors, audit;
+  let ledger, deals, audit;
   try {
-    [ledger, deals, vendors, audit] = await Promise.all([getLedger(), getDeals(), getVendors(), getAudit(40)]);
+    [ledger, deals, audit] = await Promise.all([getLedger(), getDeals(), getAudit(40)]);
   } catch (e) {
     return <CoreDown error={e} />;
   }
@@ -73,11 +73,21 @@ export default async function Overview() {
   const protectedCents = sum(ledger.payments.filter((p) => p.state === 'BLOCKED' || p.state === 'DENIED'));
 
   const needs = waiting.length + heldDeliveries.length;
+  // A guided tour of the product, ticked off from real data, so anyone trying Cosign (a judge,
+  // a new customer) walks every decision path once and ends by paying their own PayPal account.
+  const moved = new Set(['APPROVED', 'SUBMITTED', 'PAID']);
   const setup = [
-    { done: !!m, label: 'Sign a mandate with your limits', href: '/console/mandate' },
-    { done: vendors.length > 0, label: 'Approve your vendors', href: '/console/mandate?tab=vendors' },
-    { done: ledger.payments.length > 0, label: 'Add your first invoice', href: '/console/invoices/new' },
-    { done: deals.length > 0, label: 'Try milestone escrow', href: '/console/milestones#new-deal' },
+    ...(!m ? [{ done: false, label: 'Sign a mandate', hint: 'Your limits, in writing', href: '/console/mandate' }] : []),
+    { done: ledger.payments.some((p) => p.decision === 'ALLOW'), label: 'Pay a routine bill', hint: 'Add an invoice, then A normal bill', href: '/console/invoices/new' },
+    { done: ledger.payments.some((p) => p.decision === 'BLOCK'), label: 'Stop an attack', hint: 'Changed bank details and a prompt injection', href: '/console/invoices/new' },
+    { done: ledger.payments.some((p) => p.decision === 'REQUIRE_APPROVAL' && moved.has(p.state)), label: 'Sign an exception', hint: 'Approve a held bill', href: waiting.length ? '/console/inbox' : '/console/invoices/new' },
+    {
+      done: ledger.payments.some((p) => !p.receiver_email.endsWith('.example') && moved.has(p.state)),
+      label: 'Pay yourself',
+      hint: ledger.simulation ? 'Your own account as a vendor' : 'A real PayPal sandbox payout',
+      href: '/console/invoices/new',
+    },
+    { done: deals.some((d) => d.milestones.some((x) => x.state !== 'DRAFT')), label: 'Hold money in escrow', hint: 'Fund a milestone stage', href: '/console/milestones#new-deal' },
   ];
   const setupLeft = setup.filter((s) => !s.done).length;
   const delta = paidPrev7 ? Math.round(((paid7 - paidPrev7) / paidPrev7) * 100) : null;
@@ -111,7 +121,10 @@ export default async function Overview() {
       {setupLeft > 0 && (
         <Card className="mb-6 p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="font-bold">Get set up</h2>
+            <div>
+              <h2 className="font-bold">Try Cosign end to end</h2>
+              <p className="text-sm text-cs-soft">Each step is a real decision path. Ticks come from what Cosign actually did.</p>
+            </div>
             <p className="text-sm text-cs-soft">
               {setup.length - setupLeft} of {setup.length} done
             </p>
@@ -119,16 +132,29 @@ export default async function Overview() {
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-cs-rule">
             <div className="h-full rounded-full bg-cs-cleared" style={{ width: `${((setup.length - setupLeft) / setup.length) * 100}%` }} />
           </div>
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {setup.map((s) => (
+          <ol className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {setup.map((s, i) => (
               <li key={s.label}>
-                <Link href={s.href} className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${s.done ? 'border-cs-rule text-cs-faint line-through' : 'border-cs-edge font-semibold hover:border-cs-sign'}`}>
-                  <CircleCheck aria-hidden className={`size-4 shrink-0 ${s.done ? 'text-cs-cleared' : 'text-cs-faint'}`} />
-                  {s.label}
+                <Link
+                  href={s.href}
+                  className={`flex h-full items-start gap-3 rounded-lg border px-3 py-2.5 text-sm ${s.done ? 'border-cs-rule bg-cs-panel' : 'border-cs-edge hover:border-cs-sign hover:bg-cs-sign-wash'}`}
+                >
+                  {s.done ? (
+                    <CircleCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-cs-cleared" />
+                  ) : (
+                    <span aria-hidden className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-cs-edge text-[11px] font-bold text-cs-soft">
+                      {i + 1}
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span className={`block font-semibold ${s.done ? 'text-cs-faint line-through' : 'text-cs-ink'}`}>{s.label}</span>
+                    <span className="block text-xs text-cs-soft">{s.hint}</span>
+                  </span>
+                  <span className="sr-only">{s.done ? '(done)' : '(to do)'}</span>
                 </Link>
               </li>
             ))}
-          </ul>
+          </ol>
         </Card>
       )}
 

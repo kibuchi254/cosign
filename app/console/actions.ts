@@ -156,6 +156,35 @@ export async function addVendor(_: ActionState, form: FormData): Promise<ActionS
   }
 }
 
+export type PayMeState = { ok: boolean; message: string; name?: string; email?: string; amount?: string } | null;
+
+/** "Pay yourself": approves the visitor as a vendor at their own PayPal sandbox email (or finds
+ *  them already approved), so the next invoice to that email is a routine, payable bill. */
+export async function approveMe(_: PayMeState, form: FormData): Promise<PayMeState> {
+  try {
+    await signer();
+    const name = str(form, 'name');
+    const email = str(form, 'email').toLowerCase();
+    const amount = Number(str(form, 'amount') || '0');
+    if (name.length < 2) return { ok: false, message: 'Enter a business name for the invoice.' };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, message: 'Enter the email of a PayPal sandbox personal account.' };
+    if (!(amount > 0 && amount <= 1000)) return { ok: false, message: 'Pick an amount between 0.01 and 1,000.00.' };
+    const vendors = await cosign.getVendors();
+    const same = vendors.find((v) => v.paypal_email.toLowerCase() === email);
+    const vendor = same ?? (await cosign.createVendor(name, email));
+    revalidatePath('/console', 'layout');
+    return {
+      ok: true,
+      message: same ? `${vendor.name} is already approved at ${email}.` : `${vendor.name} approved. Payouts may go to ${email}.`,
+      name: vendor.name,
+      email,
+      amount: amount.toFixed(2),
+    };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 // --- Milestones ---------------------------------------------------------------------------------
 
 export async function createDeal(_: ActionState, form: FormData): Promise<ActionState> {
