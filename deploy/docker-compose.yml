@@ -51,6 +51,9 @@ services:
       CORE_URL: http://core:8080
       CORE_AGENT_TOKEN: ${CORE_AGENT_TOKEN:-local-agent-token-change-me}
       COSIGN_LLM_MODE: ${COSIGN_LLM_MODE:-replay}
+      COSIGN_LLM_PROVIDER: ${COSIGN_LLM_PROVIDER:-openrouter}
+      COSIGN_LLM_MODEL: ${COSIGN_LLM_MODEL:-z-ai/glm-5.2}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # Note: no PAYPAL_* variables here, by design.
     ports:

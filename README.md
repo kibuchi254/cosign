@@ -16,6 +16,22 @@ Open <http://localhost:3000>, choose **Open the demo** and sign in with the pass
 
 Reset everything: `docker compose -f deploy/docker-compose.yml down -v`.
 
+## For judges: use it like a real customer
+
+After signing in, the **Overview** shows a five-step tour that ticks itself off from what Cosign actually did:
+
+1. **Pay a routine bill**: Add an invoice, then **A normal bill**.
+2. **Stop an attack**: **An attack** (changed bank details plus a prompt injection). Blocked; nobody can approve it.
+3. **Sign an exception**: **A new vendor** is held; approve it in **Approvals**. Your name is sealed into the audit log.
+4. **Pay yourself**: on **Add an invoice**, open **Pay yourself through PayPal**, enter the email of one of *your* PayPal sandbox personal accounts and an amount. Cosign approves you as a vendor and writes an invoice to you; **Read and decide** pays it. With PayPal credentials on the core, log in at [sandbox.paypal.com](https://www.sandbox.paypal.com) as that account to see the money arrive. The payout's outcome appears in the audit log within about 20 seconds.
+5. **Hold money in escrow**: **Milestones**, create the sample deal, fund a stage.
+
+You can also write your own invoices (paste text or upload a PDF), change the limits under **Mandate and vendors**, and export any table as CSV. How everything fits together: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
+
+### The AI
+
+The agent reads invoices with an LLM through [OpenRouter](https://openrouter.ai) (`z-ai/glm-5.2` by default; Anthropic and OpenAI also work). Copy `agent/.env.example` to `agent/.env`, set `OPENROUTER_API_KEY` and `COSIGN_LLM_MODE=live`, and restart the agent. Without a key it runs in `replay` mode: saved model answers where they exist, otherwise a deterministic reader, so the demo always works. Either way the model only proposes; a bad, slow or tricked answer can at worst hold an invoice, never pay one.
+
 ## The three demo scenes
 
 All three start from **Add an invoice**, which has a sample button for each.

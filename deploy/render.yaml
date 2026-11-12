@@ -56,8 +56,15 @@ services:
           type: web
           name: cosign-core
           envVarKey: CORE_AGENT_TOKEN
+      # replay works with no key. For live GLM: set COSIGN_LLM_MODE=live and OPENROUTER_API_KEY.
       - key: COSIGN_LLM_MODE
         value: replay
+      - key: COSIGN_LLM_PROVIDER
+        value: openrouter
+      - key: COSIGN_LLM_MODEL
+        value: z-ai/glm-5.2
+      - key: OPENROUTER_API_KEY
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
 
