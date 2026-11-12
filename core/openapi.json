@@ -1131,6 +1131,71 @@
         },
         "security": []
       }
+    },
+    "/v1/vendors/{vendor_id}": {
+      "patch": {
+        "summary": "Rename, change the payout email (with a verification note), deactivate or reactivate a vendor",
+        "tags": [
+          "vendors"
+        ],
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VendorUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vendor"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such vendor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          }
+        },
+        "security": [
+          {
+            "operator": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1526,6 +1591,29 @@
           "verified_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Inactive vendors are off the approved list; their invoices wait for a signature."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "invoices": {
+            "type": "integer",
+            "description": "Invoices decided for this vendor"
+          },
+          "paid_cents": {
+            "type": "integer",
+            "description": "Paid or on its way, in cents"
+          },
+          "last_invoice_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -1916,6 +2004,32 @@
           },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "VendorUpdate": {
+        "type": "object",
+        "required": [
+          "changed_by"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "paypal_email": {
+            "type": "string",
+            "format": "email"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "changed_by": {
+            "type": "string",
+            "description": "Who is making the change; sealed into the audit log"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Required (8+ characters) when the payout email changes: how it was verified"
           }
         }
       }

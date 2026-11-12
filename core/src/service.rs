@@ -138,6 +138,24 @@ pub struct VendorView {
     pub name: String,
     pub paypal_email: String,
     pub verified_at: DateTime<Utc>,
+    pub active: bool,
+    pub updated_at: DateTime<Utc>,
+    /// Invoices decided for this vendor, and money paid or on its way to them.
+    pub invoices: i64,
+    pub paid_cents: i64,
+    pub last_invoice_at: Option<DateTime<Utc>>,
+}
+
+/// A change to an approved vendor. A new payout email is the classic fraud vector, so every
+/// change names who made it and why (for example "confirmed by phone with our usual contact").
+#[derive(Debug, Clone, Deserialize)]
+pub struct VendorUpdate {
+    pub name: Option<String>,
+    pub paypal_email: Option<String>,
+    pub active: Option<bool>,
+    pub changed_by: String,
+    #[serde(default)]
+    pub reason: String,
 }
 
 pub async fn create_vendor(state: &AppState, input: VendorInput) -> Result<VendorView> {
@@ -162,12 +180,102 @@ pub async fn create_vendor(state: &AppState, input: VendorInput) -> Result<Vendo
     };
     audit::append(&mut tx, "vendor.created", json!({ "vendor_id": id, "name": name, "payout_hash": policy::payout_hash(&email) })).await?;
     tx.commit().await?;
-    Ok(VendorView { id, name, paypal_email: email, verified_at })
+    Ok(VendorView { id, name, paypal_email: email, verified_at, active: true, updated_at: verified_at, invoices: 0, paid_cents: 0, last_invoice_at: None })
+}
+
+const VENDOR_SELECT: &str = "SELECT v.id, v.name, v.paypal_email, v.verified_at, v.active, v.updated_at,
+        COUNT(i.id) AS invoices,
+        COALESCE(SUM(p.amount_cents) FILTER (WHERE p.state IN ('ALLOWED', 'APPROVED', 'SUBMITTED', 'PAID')), 0)::bigint AS paid_cents,
+        MAX(i.created_at) AS last_invoice_at
+    FROM vendors v
+    LEFT JOIN invoices i ON i.vendor_id = v.id
+    LEFT JOIN payments p ON p.invoice_id = i.id";
+
+fn vendor_view(r: &sqlx::postgres::PgRow) -> VendorView {
+    VendorView {
+        id: r.get("id"),
+        name: r.get("name"),
+        paypal_email: r.get("paypal_email"),
+        verified_at: r.get("verified_at"),
+        active: r.get("active"),
+        updated_at: r.get("updated_at"),
+        invoices: r.get("invoices"),
+        paid_cents: r.get("paid_cents"),
+        last_invoice_at: r.get("last_invoice_at"),
+    }
 }
 
 pub async fn list_vendors(state: &AppState) -> Result<Vec<VendorView>> {
-    let rows = sqlx::query("SELECT id, name, paypal_email, verified_at FROM vendors ORDER BY name").fetch_all(&state.pool).await?;
-    Ok(rows.into_iter().map(|r| VendorView { id: r.get("id"), name: r.get("name"), paypal_email: r.get("paypal_email"), verified_at: r.get("verified_at") }).collect())
+    let rows = sqlx::query(&format!("{VENDOR_SELECT} GROUP BY v.id ORDER BY v.active DESC, v.name")).fetch_all(&state.pool).await?;
+    Ok(rows.iter().map(vendor_view).collect())
+}
+
+pub async fn update_vendor(state: &AppState, id: Uuid, input: VendorUpdate) -> Result<VendorView> {
+    let changed_by = input.changed_by.trim().to_string();
+    let reason = input.reason.trim().to_string();
+    if changed_by.is_empty() {
+        return Err(ServiceError::Invalid("say who is making this change".into()));
+    }
+    let mut tx = state.pool.begin().await?;
+    let row = sqlx::query("SELECT name, paypal_email, active FROM vendors WHERE id = $1 FOR UPDATE")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| ServiceError::NotFound(format!("vendor {id}")))?;
+    let (old_name, old_email, old_active): (String, String, bool) = (row.get("name"), row.get("paypal_email"), row.get("active"));
+    let name = input.name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty()).unwrap_or_else(|| old_name.clone());
+    let email = input.paypal_email.map(|e| e.trim().to_lowercase()).unwrap_or_else(|| old_email.clone());
+    let active = input.active.unwrap_or(old_active);
+    if !looks_like_email(&email) {
+        return Err(ServiceError::Invalid("that is not a valid PayPal email".into()));
+    }
+    let email_changed = email != old_email;
+    if email_changed && reason.len() < 8 {
+        return Err(ServiceError::Invalid(
+            "a new payout email needs a note on how you verified it (for example: confirmed by phone with our usual contact)".into(),
+        ));
+    }
+    if name == old_name && !email_changed && active == old_active {
+        return Err(ServiceError::Invalid("nothing to change".into()));
+    }
+    let res = sqlx::query("UPDATE vendors SET name = $1, paypal_email = $2, payout_hash = $3, active = $4, updated_at = now() WHERE id = $5")
+        .bind(&name)
+        .bind(&email)
+        .bind(policy::payout_hash(&email))
+        .bind(active)
+        .bind(id)
+        .execute(&mut *tx)
+        .await;
+    match res {
+        Ok(_) => {}
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => return Err(ServiceError::Conflict(format!("another vendor is already called {name}"))),
+        Err(e) => return Err(e.into()),
+    }
+    let kind = if active != old_active {
+        if active { "vendor.reactivated" } else { "vendor.deactivated" }
+    } else if email_changed {
+        "vendor.payout_changed"
+    } else {
+        "vendor.updated"
+    };
+    audit::append(
+        &mut tx,
+        kind,
+        json!({
+            "vendor_id": id,
+            "name": name,
+            "previous_name": (name != old_name).then_some(&old_name),
+            "payout_hash": policy::payout_hash(&email),
+            "previous_payout_hash": email_changed.then(|| policy::payout_hash(&old_email)),
+            "active": active,
+            "changed_by": changed_by,
+            "reason": reason,
+        }),
+    )
+    .await?;
+    tx.commit().await?;
+    let row = sqlx::query(&format!("{VENDOR_SELECT} WHERE v.id = $1 GROUP BY v.id")).bind(id).fetch_one(&state.pool).await?;
+    Ok(vendor_view(&row))
 }
 
 fn looks_like_email(s: &str) -> bool {
@@ -249,7 +357,8 @@ pub async fn propose(state: &AppState, input: ProposalInput) -> Result<DecisionR
     sqlx::query("SELECT pg_advisory_xact_lock(hashtext('cosign-owner:' || $1))").bind(&owner).execute(&mut *tx).await?;
 
     let (mandate, _) = active_mandate(&mut tx, &owner).await?.ok_or_else(|| ServiceError::Conflict(format!("owner {owner} has no mandate")))?;
-    let vendors: Vec<VendorRecord> = sqlx::query("SELECT id, name, payout_hash FROM vendors")
+    // Deactivated vendors are off the approved list: their invoices wait for a signature.
+    let vendors: Vec<VendorRecord> = sqlx::query("SELECT id, name, payout_hash FROM vendors WHERE active")
         .fetch_all(&mut *tx)
         .await?
         .into_iter()

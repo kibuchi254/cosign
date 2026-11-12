@@ -10,7 +10,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, patch, post},
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -89,6 +89,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/mandates", post(create_mandate))
         .route("/v1/mandates/active", get(active_mandate))
         .route("/v1/vendors", get(list_vendors).post(create_vendor))
+        .route("/v1/vendors/{vendor_id}", patch(update_vendor))
         .route("/v1/audit", get(recent_audit))
         .route("/v1/audit/verify", get(verify_audit))
         .route("/v1/payments/{payment_id}/retry", post(retry_payment))
@@ -153,6 +154,16 @@ async fn list_vendors(State(state): State<AppState>, headers: HeaderMap) -> Resu
 async fn create_vendor(State(state): State<AppState>, headers: HeaderMap, Json(body): Json<service::VendorInput>) -> Result<impl IntoResponse, ServiceError> {
     require(&state, &headers, &[Role::Operator])?;
     Ok((StatusCode::CREATED, Json(service::create_vendor(&state, body).await?)))
+}
+
+async fn update_vendor(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(vendor_id): Path<Uuid>,
+    Json(body): Json<service::VendorUpdate>,
+) -> Result<impl IntoResponse, ServiceError> {
+    require(&state, &headers, &[Role::Operator])?;
+    Ok(Json(service::update_vendor(&state, vendor_id, body).await?))
 }
 
 async fn recent_audit(State(state): State<AppState>, headers: HeaderMap, Query(q): Query<LimitQuery>) -> Result<impl IntoResponse, ServiceError> {

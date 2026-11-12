@@ -294,3 +294,50 @@ async fn webhooks_are_deduplicated_and_drive_state() {
     let st: String = sqlx::query_scalar("SELECT state FROM payments WHERE id = $1::uuid").bind(pid).fetch_one(&state.pool).await.unwrap();
     assert_eq!(st, "PAID");
 }
+
+#[tokio::test]
+async fn vendor_lifecycle_is_audited_and_drives_policy() {
+    let state = state_or_skip!();
+    seed(&state, 500_000, 50).await;
+    let (_, vendors) = call(&state, "GET", "/v1/vendors", Some(OPERATOR), None).await;
+    let nw = vendors.as_array().unwrap().iter().find(|v| v["name"] == "Northwind Design Studio").unwrap().clone();
+    let id = nw["id"].as_str().unwrap().to_string();
+    assert_eq!(nw["active"], true);
+
+    // Agents cannot touch vendors.
+    let (s, _) = call(&state, "PATCH", &format!("/v1/vendors/{id}"), Some(AGENT), Some(json!({ "active": false, "changed_by": "x" }))).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+
+    // A new payout email without a verification note is refused.
+    let (s, _) = call(&state, "PATCH", &format!("/v1/vendors/{id}"), Some(OPERATOR), Some(json!({ "paypal_email": "new@northwind.example", "changed_by": "Owner" }))).await;
+    assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // With a note it is accepted, and the old email is now a changed payout (blocked).
+    let (s, v) = call(
+        &state,
+        "PATCH",
+        &format!("/v1/vendors/{id}"),
+        Some(OPERATOR),
+        Some(json!({ "paypal_email": "new@northwind.example", "changed_by": "Owner", "reason": "Confirmed by phone with Ana, our usual contact" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let (_, old) = call(&state, "POST", "/v1/proposals", Some(AGENT), Some(proposal("Northwind Design Studio", "NW-2001", "100.00", "billing@northwind.example", json!([])))).await;
+    assert_eq!(old["decision"], "BLOCK");
+    let (_, new) = call(&state, "POST", "/v1/proposals", Some(AGENT), Some(proposal("Northwind Design Studio", "NW-2002", "100.00", "new@northwind.example", json!([])))).await;
+    assert_eq!(new["decision"], "ALLOW");
+
+    // Deactivated vendors are off the approved list: their invoices wait for a signature.
+    let (s, v) = call(&state, "PATCH", &format!("/v1/vendors/{id}"), Some(OPERATOR), Some(json!({ "active": false, "changed_by": "Owner", "reason": "Contract ended" }))).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["active"], false);
+    assert_eq!(v["invoices"], 2);
+    let (_, held) = call(&state, "POST", "/v1/proposals", Some(AGENT), Some(proposal("Northwind Design Studio", "NW-2003", "100.00", "new@northwind.example", json!([])))).await;
+    assert_eq!(held["decision"], "REQUIRE_APPROVAL");
+
+    let (_, audit) = call(&state, "GET", "/v1/audit", Some(OPERATOR), None).await;
+    let kinds: Vec<&str> = audit.as_array().unwrap().iter().map(|e| e["kind"].as_str().unwrap()).collect();
+    assert!(kinds.contains(&"vendor.payout_changed") && kinds.contains(&"vendor.deactivated"), "{kinds:?}");
+    let (_, verify) = call(&state, "GET", "/v1/audit/verify", Some(OPERATOR), None).await;
+    assert_eq!(verify["ok"], true, "{verify}");
+}
