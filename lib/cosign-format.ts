@@ -191,11 +191,17 @@ export function auditTone(e: AuditEntry): Tone {
 
 const PROVIDER_NAME: Record<string, string> = { openrouter: 'OpenRouter', anthropic: 'Anthropic', openai: 'OpenAI' };
 
-/** Who read the document, in words: "live:openrouter:z-ai/glm-5.2" -> "z-ai/glm-5.2 via OpenRouter". */
+/** Who read the document, in words: "live:openrouter:z-ai/glm-5.2" -> "z-ai/glm-5.2 via OpenRouter";
+ *  "ocr+offline" -> "OCR, then the deterministic reader". */
 export function readerLabel(source: string): string {
+  if (source.startsWith('ocr+')) {
+    const rest = source.slice(4);
+    return rest === 'none' ? 'OCR (text could not be read)' : `OCR, then ${readerLabel(rest).replace(/^Deterministic/, 'the deterministic')}`;
+  }
   if (source === 'offline') return 'Deterministic reader (no model key)';
   if (source === 'replay') return 'Saved model answer (replay)';
-  if (source.startsWith('offline (')) return `Deterministic reader, model unavailable`;
+  if (source === 'none') return 'Nothing could read it';
+  if (source.startsWith('offline (')) return 'Deterministic reader, model unavailable';
   const m = /^live:([^:]+):(.+)$/.exec(source);
   if (m) return `${m[2]} via ${PROVIDER_NAME[m[1]] ?? m[1]}`;
   return source;

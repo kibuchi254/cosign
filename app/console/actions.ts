@@ -96,13 +96,15 @@ export async function submitInvoice(_: UploadState, form: FormData): Promise<Upl
   try {
     await signer();
     const file = form.get('file');
-    let input: { text?: string; pdf_base64?: string; filename?: string };
+    let input: { text?: string; pdf_base64?: string; image_base64?: string; filename?: string };
     if (file instanceof File && file.size > 0) {
-      if (file.size > 5_000_000) return { ok: false, message: 'That file is over 5 MB. Upload a smaller PDF or paste the text.' };
+      if (file.size > 5_000_000) return { ok: false, message: 'That file is over 5 MB. Upload a smaller file or paste the text.' };
       const bytes = Buffer.from(await file.arrayBuffer());
-      input = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-        ? { pdf_base64: bytes.toString('base64'), filename: file.name }
-        : { text: bytes.toString('utf8'), filename: file.name };
+      const lower = file.name.toLowerCase();
+      if (file.type === 'application/pdf' || lower.endsWith('.pdf')) input = { pdf_base64: bytes.toString('base64'), filename: file.name };
+      // Photos and scans are read with OCR by the agent.
+      else if (file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/.test(lower)) input = { image_base64: bytes.toString('base64'), filename: file.name };
+      else input = { text: bytes.toString('utf8'), filename: file.name };
     } else {
       const text = str(form, 'text');
       if (!text) return { ok: false, message: 'Paste the invoice text or choose a file.' };

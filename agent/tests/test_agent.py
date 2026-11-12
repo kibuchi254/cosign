@@ -21,6 +21,9 @@ Pay to (PayPal): billing@northwind.example
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch, tmp_path):
+    # agent/.env may set a provider and key for local runs; tests start from a clean slate.
+    for k in ("COSIGN_LLM_PROVIDER", "COSIGN_LLM_MODEL", "OPENROUTER_API_KEY", "COSIGN_LLM_FALLBACK", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("COSIGN_LLM_MODE", "offline")
     monkeypatch.setattr(llm, "REPLAY_DIR", tmp_path)
 
@@ -301,3 +304,68 @@ def test_read_endpoint_refuses_unlisted_tools_and_reports_token_refusal(monkeypa
     monkeypatch.setattr(paypal_read.httpx, "get", lambda *a, **k: type("R", (), {"status_code": 503, "text": "sharing off"})())
     r = c.post("/agent/paypal/read", json={"tool": "invoices.list"})
     assert r.status_code == 503 and "token" in r.json()["detail"]
+
+
+# --- OCR: photos and scanned PDFs ---------------------------------------------------------------
+
+def _invoice_image(fmt: str) -> bytes:
+    import io
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.new("RGB", (1240, 760), "white")
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("arial.ttf", 30)
+    except OSError:
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", 30)
+        except OSError:
+            pytest.skip("no TrueType font available to draw a test invoice")
+    y = 60
+    for line in NORMAL.strip().splitlines():
+        d.text((80, y), line, fill="black", font=font)
+        y += 70
+    buf = io.BytesIO()
+    img.save(buf, format=fmt)
+    return buf.getvalue()
+
+
+ocr_ready = pytest.mark.skipif(not __import__("cosign_agent.ocr", fromlist=["available"]).available(), reason="OCR not installed")
+
+
+@ocr_ready
+def test_photo_of_an_invoice_is_read_with_ocr():
+    import base64
+
+    from cosign_agent.extract import decode_document
+
+    text, raw, via = decode_document(None, None, base64.b64encode(_invoice_image("PNG")).decode())
+    assert via == "ocr"
+    fields, flags, _, error = read_invoice(text)
+    assert error is None and fields is not None
+    assert (fields.vendor_name, fields.invoice_number, str(fields.amount), fields.payout_email) == ("Northwind Design Studio", "NW-1042", "850.00", "billing@northwind.example")
+
+
+@ocr_ready
+def test_scanned_pdf_falls_back_to_ocr():
+    import base64
+
+    from cosign_agent.extract import decode_document
+
+    pdf = _invoice_image("PDF")  # an image saved as PDF: no text layer
+    text, _, via = decode_document(None, base64.b64encode(pdf).decode())
+    assert via == "ocr"
+    assert "NW-1042" in text and "billing@northwind.example" in text
+
+
+def test_text_pdf_skips_ocr(monkeypatch):
+    from cosign_agent import ocr
+    from cosign_agent.extract import decode_document
+
+    monkeypatch.setattr("cosign_agent.extract.pdf_to_text", lambda raw: NORMAL)
+    monkeypatch.setattr(ocr, "pdf_to_text_ocr", lambda raw: pytest.fail("OCR should not run on a text PDF"))
+    import base64
+
+    text, _, via = decode_document(None, base64.b64encode(b"%PDF-1.4 fake").decode())
+    assert via is None and "NW-1042" in text

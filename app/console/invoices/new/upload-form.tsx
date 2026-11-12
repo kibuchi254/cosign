@@ -175,7 +175,7 @@ export function UploadForm({ live = false }: { live?: boolean }) {
             }}
             className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-7 text-center ${drag ? 'border-cs-sign bg-cs-sign-wash' : 'border-cs-edge hover:border-cs-faint'}`}
           >
-            <input ref={fileRef} name="file" type="file" accept=".pdf,.txt,application/pdf,text/plain" className="sr-only" onChange={(e) => setFileFrom(e.target.files?.[0])} />
+            <input ref={fileRef} name="file" type="file" accept=".pdf,.txt,.png,.jpg,.jpeg,.webp,application/pdf,text/plain,image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => setFileFrom(e.target.files?.[0])} />
             {file ? (
               <span className="flex items-center gap-2 text-sm font-semibold">
                 <FileText aria-hidden className="size-5 text-cs-sign" /> {file.name}
@@ -187,8 +187,8 @@ export function UploadForm({ live = false }: { live?: boolean }) {
             ) : (
               <>
                 <UploadCloud aria-hidden className="size-7 text-cs-faint" />
-                <span className="mt-2 text-sm font-semibold">Drop a PDF or text invoice here, or choose a file</span>
-                <span className="text-xs text-cs-faint">Up to 5 MB</span>
+                <span className="mt-2 text-sm font-semibold">Drop an invoice here, or choose a file</span>
+                <span className="text-xs text-cs-faint">PDF, photo or scan (PNG, JPG, WebP), or text. Up to 5 MB. Scans are read with OCR.</span>
               </>
             )}
           </label>

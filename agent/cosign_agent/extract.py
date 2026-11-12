@@ -28,20 +28,49 @@ def pdf_to_text(data: bytes) -> str:
     return "\n".join((page.extract_text() or "") for page in reader.pages[:20])
 
 
-def decode_input(text: str | None, pdf_base64: str | None) -> tuple[str, bytes]:
-    """Returns (document text, original bytes for hashing)."""
+# Fewer real characters than this in a PDF's text layer means it is a scan (or a photo saved as
+# PDF), so it is read with OCR instead.
+MIN_TEXT_CHARS = 30
+
+
+def _b64(value: str, what: str) -> bytes:
+    try:
+        return base64.b64decode(value, validate=True)
+    except Exception as e:
+        raise Unreadable(f"{what} is not valid base64: {e}") from e
+
+
+def decode_input(text: str | None, pdf_base64: str | None, image_base64: str | None = None) -> tuple[str, bytes]:
+    """Returns (document text, original bytes for hashing). See decode_document for how."""
+    doc, raw, _ = decode_document(text, pdf_base64, image_base64)
+    return doc, raw
+
+
+def decode_document(text: str | None, pdf_base64: str | None, image_base64: str | None = None) -> tuple[str, bytes, str | None]:
+    """Returns (document text, original bytes, how the text was obtained: None for text and
+    text-layer PDFs, "ocr" for images and scanned PDFs)."""
+    from . import ocr
+
+    if image_base64:
+        raw = _b64(image_base64, "image_base64")
+        return ocr.image_to_text(raw), raw, "ocr"
     if pdf_base64:
+        raw = _b64(pdf_base64, "pdf_base64")
         try:
-            raw = base64.b64decode(pdf_base64, validate=True)
-        except Exception as e:
-            raise Unreadable(f"pdf_base64 is not valid base64: {e}") from e
-        try:
-            return pdf_to_text(raw), raw
+            doc = pdf_to_text(raw)
         except Exception as e:
             raise Unreadable(f"could not read PDF: {e}") from e
+        if len(re.sub(r"\s", "", doc)) >= MIN_TEXT_CHARS:
+            return doc, raw, None
+        try:
+            return ocr.pdf_to_text_ocr(raw), raw, "ocr"
+        except Unreadable:
+            raise
+        except Exception as e:
+            raise Unreadable(f"could not render the scanned PDF: {e}") from e
     if text is None or not text.strip():
         raise Unreadable("no document text supplied")
-    return text, text.encode("utf-8")
+    return text, text.encode("utf-8"), None
 
 
 # --- Deterministic reader -------------------------------------------------------------------

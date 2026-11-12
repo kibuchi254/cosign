@@ -81,6 +81,8 @@ class ReviewText(BaseModel):
 class ReadInvoiceRequest(BaseModel):
     text: str | None = None
     pdf_base64: str | None = None
+    # A photo or scan of the invoice (PNG, JPEG, WebP). Read with local OCR.
+    image_base64: str | None = None
     filename: str | None = None
     # Send the proposal to the Rust core (default). False = extraction only.
     propose: bool = True

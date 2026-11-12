@@ -9,10 +9,14 @@ dependencies = [
     "pydantic>=2.7",
     "httpx>=0.27",
     "pypdf>=4.0",
+    # Local OCR for photos and scanned PDFs: no vision model or API needed.
+    "rapidocr>=3.0",
+    "onnxruntime>=1.18",
+    "pypdfium2>=4.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "Pillow>=10"]
 mcp = ["mcp>=1.0"]
 
 [tool.pytest.ini_options]

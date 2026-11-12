@@ -95,7 +95,7 @@ export const voidMilestone = (id: string, approver: string, note?: string) => co
 
 // --- Agent --------------------------------------------------------------------------------------
 
-export const readInvoice = (input: { text?: string; pdf_base64?: string; filename?: string }) => agent<ReadInvoiceResponse>('/agent/read-invoice', { ...input, propose: true });
+export const readInvoice = (input: { text?: string; pdf_base64?: string; image_base64?: string; filename?: string }) => agent<ReadInvoiceResponse>('/agent/read-invoice', { ...input, propose: true });
 export const reviewPayment = (p: { vendor_name: string; invoice_number: string; amount: string; currency: string; decision: string; reasons: unknown[]; agent_flags: unknown[] }) =>
   agent<Review>('/agent/review', p);
 export const checkMilestone = (m: { milestone_id: string; evidence_hash: string; criteria: string[]; evidence: string }) =>

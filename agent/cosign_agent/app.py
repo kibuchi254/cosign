@@ -25,7 +25,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 
 from . import llm
 from .core_client import CoreClient, CoreError
-from .extract import decode_input, read_invoice, source_hash
+from .extract import decode_document, read_invoice, source_hash
 from .llm import Unreadable
 from . import paypal_read
 from .criteria import check_milestone
@@ -63,11 +63,13 @@ def health() -> dict:
 @app.post("/agent/read-invoice", response_model=ReadInvoiceResponse, dependencies=[Depends(caller)])
 def read_invoice_endpoint(req: ReadInvoiceRequest, client: CoreClient = Depends(core)) -> ReadInvoiceResponse:
     try:
-        text, raw = decode_input(req.text, req.pdf_base64)
+        text, raw, via = decode_document(req.text, req.pdf_base64, req.image_base64)
     except Unreadable as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     shash = source_hash(raw)
     fields, flags, extractor, error = read_invoice(text)
+    if via:
+        extractor = f"{via}+{extractor}"  # e.g. "ocr+live:openrouter:z-ai/glm-5.2"
     if fields is None:
         # Fail closed: nothing reaches the core without the minimum fields, so nothing is paid.
         return ReadInvoiceResponse(status="unreadable", source_hash=shash, fields=None, flags=flags, extractor=extractor, error=error)
