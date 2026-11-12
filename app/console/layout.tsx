@@ -4,7 +4,7 @@ import { getDeals, getLedger, getVendors } from '@/lib/cosign';
 import { day, money } from '@/lib/cosign-format';
 import { SESSION_COOKIE, verify } from '@/lib/session';
 import { logout } from '../login/actions';
-import { Shell, type Notice, type SearchItem } from './shell';
+import { Shell, type MandateSummary, type Notice, type SearchItem } from './shell';
 
 const PAGES: SearchItem[] = [
   { group: 'Pages', label: 'Overview', href: '/console' },
@@ -42,6 +42,24 @@ export default async function ConsoleLayout({ children }: LayoutProps<'/console'
       : []),
   ];
 
+  // What the daily cap has already absorbed today (UTC): paid or on its way to PayPal.
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const usedToday = (ledger?.payments ?? [])
+    .filter((p) => (p.state === 'PAID' || p.state === 'SUBMITTED') && p.created_at.slice(0, 10) === todayUtc)
+    .reduce((sum, p) => sum + p.amount_cents, 0);
+  const mandate: MandateSummary | null = m
+    ? {
+        currency: m.rules.currency,
+        perInvoiceCents: m.rules.per_invoice_cap_cents,
+        dailyCapCents: m.rules.daily_cap_cents,
+        usedTodayCents: usedToday,
+        velocity: `${m.rules.velocity_max_payments} per ${m.rules.velocity_window_minutes} min`,
+        expiresAt: m.expires_at,
+        expiresLabel: day(m.expires_at),
+        hash: m.hash,
+      }
+    : null;
+
   const search: SearchItem[] = [
     ...PAGES,
     ...(ledger?.payments ?? []).slice(0, 200).map((p) => ({
@@ -59,7 +77,7 @@ export default async function ConsoleLayout({ children }: LayoutProps<'/console'
       user={session?.name ?? 'Owner'}
       waiting={waiting.length + held.length}
       simulation={ledger ? ledger.simulation : null}
-      mandateLine={m ? `${money(m.rules.per_invoice_cap_cents, m.rules.currency)} per invoice, ${money(m.rules.daily_cap_cents, m.rules.currency)} a day, until ${day(m.expires_at)}` : null}
+      mandate={mandate}
       search={search}
       notices={notices}
       logout={logout}

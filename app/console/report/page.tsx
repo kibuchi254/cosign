@@ -50,9 +50,12 @@ export default async function Report() {
     ),
   };
   return (
-    <div className="flex h-[calc(100dvh-3rem)] flex-col">
+    // Fill exactly the space under the top bar: 4rem header + main's padding (1.5rem top, and
+    // 6rem / 2.5rem bottom on phones / desktop). The floor keeps Studio's 600px root inside the
+    // box on short screens, so the page scrolls as one piece instead of leaving a gap below.
+    <div className="flex h-[calc(100dvh-11.5rem)] min-h-[48rem] flex-col lg:h-[calc(100dvh-8rem)]">
       <PageHead title="Reports" lede="Spend against your mandate, what was stopped and why, and money held in escrow. Switch to edit to build your own views." />
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-xl">
         {rows.payments.length === 0 && rows.milestones.length === 0 ? (
           <p className="text-sm text-cs-soft">Reports fill in once Cosign has decided on some invoices.</p>
         ) : (

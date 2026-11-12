@@ -10,6 +10,7 @@ import {
   Bell,
   ChartColumn,
   ChevronDown,
+  ChevronRight,
   FileUp,
   Inbox,
   LayoutDashboard,
@@ -21,14 +22,26 @@ import {
   ReceiptText,
   ScrollText,
   Search,
+  ShieldAlert,
   ShieldCheck,
   Sun,
   X,
   type LucideIcon,
 } from 'lucide-react';
+import { money } from '@/lib/cosign-format';
 import { Toaster } from './toast';
 
 export type SearchItem = { label: string; hint?: string; href: string; group: 'Pages' | 'Actions' | 'Payments' | 'Vendors' | 'Deals' };
+export type MandateSummary = {
+  currency: string;
+  perInvoiceCents: number;
+  dailyCapCents: number;
+  usedTodayCents: number;
+  velocity: string;
+  expiresAt: string;
+  expiresLabel: string;
+  hash: string;
+};
 export type Notice = { title: string; body: string; href: string; tone: 'held' | 'blocked' | 'sign' };
 
 type NavItem = { href: string; label: string; icon: LucideIcon; count?: number };
@@ -38,7 +51,7 @@ export function Shell({
   user,
   waiting,
   simulation,
-  mandateLine,
+  mandate,
   search,
   notices,
   logout,
@@ -47,7 +60,7 @@ export function Shell({
   user: string;
   waiting: number;
   simulation: boolean | null;
-  mandateLine: string | null;
+  mandate: MandateSummary | null;
   search: SearchItem[];
   notices: Notice[];
   logout: () => Promise<void>;
@@ -126,21 +139,9 @@ export function Shell({
   );
 
   const sidebarFoot = (
-    <div className="mt-auto space-y-3 border-t border-cs-rule px-5 py-4">
-      {mandateLine && (
-        <Link href="/console/mandate" className="block rounded-lg bg-cs-panel px-3 py-2.5 text-xs leading-relaxed text-cs-soft hover:bg-cs-hover">
-          <span className="flex items-center gap-1.5 font-semibold text-cs-ink">
-            <ShieldCheck aria-hidden className="size-3.5 text-cs-cleared" /> Mandate active
-          </span>
-          {mandateLine}
-        </Link>
-      )}
-      {simulation !== null && (
-        <p className="flex items-center gap-2 text-xs text-cs-faint">
-          <span className={`size-2 rounded-full ${simulation ? 'bg-cs-held' : 'bg-cs-cleared'}`} aria-hidden />
-          {simulation ? 'Simulated payouts, no real money' : 'Connected to PayPal sandbox'}
-        </p>
-      )}
+    <div className="space-y-2.5 border-t border-cs-rule px-3 py-3">
+      <MandateCard mandate={mandate} onNavigate={() => setDrawerOpen(false)} />
+      {simulation !== null && <RailStatus simulation={simulation} />}
     </div>
   );
 
@@ -153,7 +154,7 @@ export function Shell({
           <Logo />
           <span className="text-lg font-extrabold tracking-tight">Cosign</span>
         </Link>
-        {nav}
+        <div className="cs-scroll min-h-0 flex-1 overflow-y-auto pb-4">{nav}</div>
         {sidebarFoot}
       </aside>
       </div>
@@ -171,7 +172,7 @@ export function Shell({
                 <X className="size-5" />
               </button>
             </div>
-            {nav}
+            <div className="cs-scroll min-h-0 flex-1 overflow-y-auto pb-4">{nav}</div>
             {sidebarFoot}
           </aside>
         </div>
@@ -223,6 +224,106 @@ export function Shell({
 
       {paletteOpen && <Palette items={search} onClose={() => setPaletteOpen(false)} />}
       <Toaster />
+    </div>
+  );
+}
+
+// --- Mandate card -------------------------------------------------------------------------------
+
+const DAY_MS = 86_400_000;
+
+/** The signed spending mandate, shown like an account limit: today's usage against the daily
+ *  cap, the per-invoice ceiling and the velocity rule, with the hash every decision quotes. */
+function MandateCard({ mandate, onNavigate }: { mandate: MandateSummary | null; onNavigate: () => void }) {
+  // One "now" per mount; days-left only needs day precision.
+  const [now] = useState(() => Date.now());
+  if (!mandate) {
+    return (
+      <Link href="/console/mandate" onClick={onNavigate} className="flex items-center gap-3 rounded-xl border border-dashed border-cs-blocked bg-cs-paper px-3 py-3 text-xs hover:bg-cs-hover">
+        <ShieldAlert aria-hidden className="size-5 shrink-0 text-cs-blocked" />
+        <span>
+          <span className="block font-semibold text-cs-ink">No active mandate</span>
+          <span className="text-cs-soft">Cosign pays nothing until you sign one.</span>
+        </span>
+      </Link>
+    );
+  }
+  const m = mandate;
+  const pct = m.dailyCapCents > 0 ? Math.min(100, (m.usedTodayCents / m.dailyCapCents) * 100) : 0;
+  const daysLeft = Math.max(0, Math.ceil((new Date(m.expiresAt).getTime() - now) / DAY_MS));
+  const expiring = daysLeft <= 14;
+  const bar = pct >= 90 ? 'bg-cs-blocked' : pct >= 70 ? 'bg-cs-held' : 'bg-cs-cleared';
+  const remaining = Math.max(0, m.dailyCapCents - m.usedTodayCents);
+
+  return (
+    <Link
+      href="/console/mandate"
+      onClick={onNavigate}
+      aria-label={`Spending mandate: ${money(m.usedTodayCents, m.currency)} of ${money(m.dailyCapCents, m.currency)} used today. Manage limits.`}
+      className="group block overflow-hidden rounded-xl border border-cs-edge bg-cs-paper transition-shadow hover:shadow-[var(--cs-shadow-lift)]"
+      style={{ boxShadow: 'var(--cs-shadow)' }}
+    >
+      <div className="flex items-center justify-between gap-2 bg-cs-sign px-3 py-2 text-cs-on-accent">
+        <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-[0.06em] whitespace-nowrap uppercase">
+          <ShieldCheck aria-hidden className="size-3.5 shrink-0" /> Mandate
+        </span>
+        <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap">
+          <span className={`size-1.5 rounded-full ${expiring ? 'bg-amber-300' : 'bg-emerald-300'}`} aria-hidden />
+          {expiring ? 'Renew soon' : 'Active'}
+        </span>
+      </div>
+
+      <div className="px-3 pt-3">
+        <p className="text-[10px] font-semibold tracking-[0.08em] text-cs-faint uppercase">Used today</p>
+        <p className="mt-0.5 flex items-baseline gap-1.5">
+          <span className="text-lg font-bold tracking-tight text-cs-ink tabular-nums">{money(m.usedTodayCents, m.currency)}</span>
+          <span className="text-[11px] text-cs-faint tabular-nums">of {money(m.dailyCapCents, m.currency)}</span>
+        </p>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cs-rule" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label="Daily cap used">
+          <div className={`h-full rounded-full ${bar} transition-[width] duration-500`} style={{ width: `${pct > 0 ? Math.max(pct, 3) : 0}%` }} />
+        </div>
+        <p className="mt-1 text-[11px] text-cs-soft tabular-nums">{money(remaining, m.currency)} left today</p>
+      </div>
+
+      <dl className="mx-3 mt-3 divide-y divide-cs-rule border-y border-cs-rule text-[11.5px]">
+        {[
+          ['Per invoice', money(m.perInvoiceCents, m.currency), false],
+          ['Velocity', m.velocity, false],
+          ['Valid until', `${m.expiresLabel}${expiring ? ` · ${daysLeft}d` : ''}`, expiring],
+        ].map(([k, v, warn]) => (
+          <div key={String(k)} className="flex items-center justify-between gap-2 py-1.5">
+            <dt className="text-cs-soft">{k}</dt>
+            <dd className={`font-semibold tabular-nums ${warn ? 'text-cs-held' : 'text-cs-ink'}`}>{v}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="flex items-center justify-between px-3 py-2 text-[11px]">
+        <span className="font-cs-mono text-cs-faint" title={`Mandate hash ${m.hash}`}>
+          sig {m.hash.slice(0, 8)}
+        </span>
+        <span className="flex items-center gap-0.5 font-semibold text-cs-sign group-hover:text-cs-sign-deep">
+          Manage <ChevronRight aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function RailStatus({ simulation }: { simulation: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-cs-edge bg-cs-panel px-3 py-2">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#003087] text-[11px] font-extrabold text-white" aria-hidden>
+        P
+      </span>
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block text-xs font-semibold text-cs-ink">{simulation ? 'Simulation mode' : 'PayPal sandbox'}</span>
+        <span className="block truncate text-[11px] text-cs-faint">{simulation ? 'Payouts are simulated' : 'Live API, test money'}</span>
+      </span>
+      <span className="relative flex size-2" role="img" aria-label={simulation ? 'Simulated' : 'Connected'}>
+        {!simulation && <span className="absolute inline-flex size-full animate-ping rounded-full bg-cs-cleared opacity-60" />}
+        <span className={`relative inline-flex size-2 rounded-full ${simulation ? 'bg-cs-held' : 'bg-cs-cleared'}`} />
+      </span>
     </div>
   );
 }

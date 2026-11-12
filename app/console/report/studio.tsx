@@ -238,7 +238,7 @@ export function CosignStudio({ rows, licenseKey, aiModels }: { rows: StudioRows;
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <AgStudioProvider licenseKey={licenseKey} modules={harness ? [AgStudioAiModule] : undefined}>
           <AgStudio style={{ height: '100%', width: '100%' }} theme={theme} layout={{ widgetBorderEnabled: true }} data={data} ai={harness} initialState={report} mode={mode} />
         </AgStudioProvider>
