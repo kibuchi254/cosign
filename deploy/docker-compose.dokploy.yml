@@ -3,10 +3,10 @@
 # Every secret below is required: the stack refuses to start with a missing one, instead of
 # silently running with a well-known default. See deploy/DOKPLOY.md for the full setup.
 #
-# Nothing binds a host port. In Dokploy, add domains (Domains tab) for:
-#   web  -> port 3000   (the console; this is the only thing users open)
-#   core -> port 8080   (optional: only needed so PayPal can reach /webhooks/paypal)
-# The agent and the database are never public.
+# One public domain. Nothing binds a host port; in Dokploy add a single domain (Domains tab):
+#   web -> port 3000
+# The web app serves the console and forwards PayPal webhooks (https://<domain>/webhooks/paypal)
+# to the core. The core, the agent and the database are never public.
 
 x-restart: &restart
   restart: unless-stopped

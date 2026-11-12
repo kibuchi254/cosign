@@ -58,7 +58,7 @@ Cosign runs without PayPal. To use the real sandbox:
 
 1. At [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox), create a REST app. Copy its client ID and secret. Enable **Payouts** on the sandbox business account.
 2. Under **Sandbox accounts**, note a **personal** account email (payout receiver, and the buyer for milestone funding).
-3. Add a webhook on the app pointing at `https://<your core>/webhooks/paypal` with the `PAYMENT.PAYOUTS-ITEM.*` events, and copy its webhook ID.
+3. Add a webhook on the app pointing at `https://<your core>/webhooks/paypal` (or `https://<your web domain>/webhooks/paypal`, which the web app forwards to the core) with the `PAYMENT.PAYOUTS-ITEM.*` events, and copy its webhook ID.
 4. Put the three values in the **core's** environment only: `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`, `PAYPAL_WEBHOOK_ID` (for compose, export them before `up`; on Render, set them on `cosign-core`). Never give them to the agent or the web app.
 5. Check everything with the gate script: `cd core && SPIKE_RECEIVER=<personal email> cargo run --bin cosign-spike`. It runs a token, a $1 payout and its replay, authorize then capture, and the webhook check, and prints `GATE: PASS` or `GATE: FAIL`.
 

@@ -4,6 +4,7 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p src/bin && echo "fn main() {}" > src/main.rs && echo "fn main() {}" > src/bin/spike.rs && echo "" > src/lib.rs \
     && cargo build --release --locked 2>/dev/null || true
+COPY build.rs ./build.rs
 COPY src ./src
 COPY migrations ./migrations
 COPY openapi.json ./openapi.json

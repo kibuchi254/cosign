@@ -35,14 +35,17 @@ All three tokens must be different.
 With `COSIGN_LLM_MODE=live` and no working key, invoices come back unreadable and are never
 paid (it fails closed). Set `COSIGN_LLM_FALLBACK=offline` to fall back to the deterministic reader.
 
-## 3. Domains (Domains tab)
+## 3. One domain (Domains tab)
 
-| Service | Port | Why |
-|---|---|---|
-| `web` | 3000 | The console. Turn on HTTPS. |
-| `core` | 8080 | Only if you use PayPal: point the PayPal webhook at `https://<core domain>/webhooks/paypal` |
+Add a single domain on the **`web`** service, port **3000**, with HTTPS on. That is the link you
+share. Everything goes through it:
 
-Never add a domain for `agent` or `db`.
+- The console: `https://<your domain>` (sign in with `DEMO_PASSWORD`).
+- PayPal webhooks, if you use PayPal: point the webhook at `https://<your domain>/webhooks/paypal`.
+  The web app forwards it unchanged to the core, which checks PayPal's signature. Webhooks are
+  optional: the core also polls PayPal for payout results every 20 seconds.
+
+Do not add domains for `core`, `agent` or `db`: they stay on the private network.
 
 ## 4. After the first deploy
 
