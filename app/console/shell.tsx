@@ -206,10 +206,11 @@ export function Shell({
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border border-cs-edge bg-cs-panel px-3 text-left text-sm text-cs-faint hover:border-cs-faint sm:max-w-md"
+            aria-label="Search payments, vendors, pages"
+            className="flex size-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-cs-edge bg-cs-panel text-left text-sm text-cs-faint hover:border-cs-faint sm:h-10 sm:w-auto sm:min-w-0 sm:flex-1 sm:shrink sm:justify-start sm:px-3 sm:max-w-md"
           >
             <Search aria-hidden className="size-4 shrink-0" />
-            <span className="truncate">Search payments, vendors, pages</span>
+            <span className="hidden truncate sm:inline">Search payments, vendors, pages</span>
             <kbd className="ml-auto hidden rounded border border-cs-edge px-1.5 font-sans text-[11px] text-cs-faint sm:inline">Ctrl K</kbd>
           </button>
           <div className="ml-auto flex items-center gap-1.5">
