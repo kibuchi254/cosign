@@ -16,6 +16,8 @@ Open <http://localhost:3000>, choose **Open the demo** and sign in with the pass
 
 Reset everything: `docker compose -f deploy/docker-compose.yml down -v`.
 
+Deploying to a server with Dokploy: see [deploy/DOKPLOY.md](deploy/DOKPLOY.md) (production compose file, required secrets, domains).
+
 ## For judges: use it like a real customer
 
 After signing in, the **Overview** shows a five-step tour that ticks itself off from what Cosign actually did:

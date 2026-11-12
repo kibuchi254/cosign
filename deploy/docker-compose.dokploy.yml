@@ -1,0 +1,110 @@
+# Cosign on Dokploy (production). Set this as the Compose Path in Dokploy:
+#   ./deploy/docker-compose.dokploy.yml
+# Every secret below is required: the stack refuses to start with a missing one, instead of
+# silently running with a well-known default. See deploy/DOKPLOY.md for the full setup.
+#
+# Nothing binds a host port. In Dokploy, add domains (Domains tab) for:
+#   web  -> port 3000   (the console; this is the only thing users open)
+#   core -> port 8080   (optional: only needed so PayPal can reach /webhooks/paypal)
+# The agent and the database are never public.
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  db:
+    <<: *restart
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cosign
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: cosign
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosign"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  core:
+    <<: *restart
+    build: ../core
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://cosign:${POSTGRES_PASSWORD}@db:5432/cosign
+      CORE_AGENT_TOKEN: ${CORE_AGENT_TOKEN:?set CORE_AGENT_TOKEN}
+      CORE_OPERATOR_TOKEN: ${CORE_OPERATOR_TOKEN:?set CORE_OPERATOR_TOKEN}
+      CORE_INTERNAL_TOKEN: ${CORE_INTERNAL_TOKEN:?set CORE_INTERNAL_TOKEN}
+      # Blank = simulated payouts. Only the core ever sees these.
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_SECRET: ${PAYPAL_SECRET:-}
+      PAYPAL_WEBHOOK_ID: ${PAYPAL_WEBHOOK_ID:-}
+      RUST_LOG: cosign_core=info,tower_http=info
+    expose:
+      - "8080"
+
+  agent:
+    <<: *restart
+    build: ../agent
+    depends_on:
+      - core
+    environment:
+      CORE_URL: http://core:8080
+      CORE_AGENT_TOKEN: ${CORE_AGENT_TOKEN:?set CORE_AGENT_TOKEN}
+      COSIGN_LLM_MODE: ${COSIGN_LLM_MODE:-live}
+      COSIGN_LLM_PROVIDER: ${COSIGN_LLM_PROVIDER:-openrouter}
+      COSIGN_LLM_MODEL: ${COSIGN_LLM_MODEL:-z-ai/glm-5.2}
+      COSIGN_LLM_FALLBACK: ${COSIGN_LLM_FALLBACK:-off}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # No PAYPAL_* here, by design: the agent cannot move money.
+    expose:
+      - "8000"
+
+  web:
+    <<: *restart
+    build: ..
+    depends_on:
+      - core
+      - agent
+    environment:
+      COSIGN_CORE_URL: http://core:8080
+      COSIGN_AGENT_URL: http://agent:8000
+      CORE_OPERATOR_TOKEN: ${CORE_OPERATOR_TOKEN:?set CORE_OPERATOR_TOKEN}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:?set DEMO_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      AG_STUDIO: ${AG_STUDIO:-}
+      AG_STUDIO_OPENAI_API_KEY: ${AG_STUDIO_OPENAI_API_KEY:-}
+    expose:
+      - "3000"
+
+  # Every 6 hours: renews PayPal holds past the honor period, expires lapsed ones.
+  jobs:
+    <<: *restart
+    image: curlimages/curl:8.10.1
+    depends_on:
+      - core
+    environment:
+      CORE_INTERNAL_TOKEN: ${CORE_INTERNAL_TOKEN:?set CORE_INTERNAL_TOKEN}
+    entrypoint: ["sh", "-c", "sleep 60; while true; do curl -fsS -X POST -H \"Authorization: Bearer $$CORE_INTERNAL_TOKEN\" http://core:8080/internal/reauthorize; echo; sleep 21600; done"]
+
+  # Demo data (a mandate and three fictional vendors). Off by default in production.
+  # To load it once, set COMPOSE_PROFILES=demo in Dokploy's environment and redeploy.
+  seed:
+    profiles: ["demo"]
+    image: python:3.12-slim
+    depends_on:
+      - core
+    environment:
+      CORE_URL: http://core:8080
+      CORE_OPERATOR_TOKEN: ${CORE_OPERATOR_TOKEN:?set CORE_OPERATOR_TOKEN}
+    volumes:
+      - ../scripts:/scripts:ro
+    command: ["sh", "-c", "sleep 20 && python /scripts/seed_demo.py"]
+    restart: "no"
+
+volumes:
+  pgdata:
