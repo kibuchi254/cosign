@@ -1,0 +1,100 @@
+# Cosign, all services, no API keys needed:
+#   docker compose -f deploy/docker-compose.yml up --build
+# Web:   http://localhost:3000   (sign in with the demo password, default "cosign")
+# Core:  http://localhost:8080   (Rust; simulated payouts unless PAYPAL_* are set)
+# Agent: http://localhost:8000   (Python; replay/offline reader unless COSIGN_LLM_MODE=live)
+# Reset all state: docker compose -f deploy/docker-compose.yml down -v
+#
+# The tokens below are for local use only. Render generates real ones (deploy/render.yaml).
+
+x-tokens: &tokens
+  CORE_AGENT_TOKEN: ${CORE_AGENT_TOKEN:-local-agent-token-change-me}
+  CORE_OPERATOR_TOKEN: ${CORE_OPERATOR_TOKEN:-local-operator-token-change-me}
+  CORE_INTERNAL_TOKEN: ${CORE_INTERNAL_TOKEN:-local-internal-token-change-me}
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cosign
+      POSTGRES_PASSWORD: cosign
+      POSTGRES_DB: cosign
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosign"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  core:
+    build: ../core
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *tokens
+      DATABASE_URL: postgres://cosign:cosign@db:5432/cosign
+      # Leave blank for simulation mode. Only the core ever sees these.
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_SECRET: ${PAYPAL_SECRET:-}
+      PAYPAL_WEBHOOK_ID: ${PAYPAL_WEBHOOK_ID:-}
+      RUST_LOG: cosign_core=info,tower_http=info
+    ports:
+      - "8080:8080"
+
+  agent:
+    build: ../agent
+    depends_on:
+      - core
+    environment:
+      CORE_URL: http://core:8080
+      CORE_AGENT_TOKEN: ${CORE_AGENT_TOKEN:-local-agent-token-change-me}
+      COSIGN_LLM_MODE: ${COSIGN_LLM_MODE:-replay}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Note: no PAYPAL_* variables here, by design.
+    ports:
+      - "8000:8000"
+
+  web:
+    build: ..
+    depends_on:
+      - core
+      - agent
+    environment:
+      COSIGN_CORE_URL: http://core:8080
+      COSIGN_AGENT_URL: http://agent:8000
+      CORE_OPERATOR_TOKEN: ${CORE_OPERATOR_TOKEN:-local-operator-token-change-me}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-cosign}
+      SESSION_SECRET: ${SESSION_SECRET:-local-session-secret-change-me}
+      # Optional: AG Studio licence and the Studio assistant.
+      AG_STUDIO: ${AG_STUDIO:-}
+      AG_STUDIO_OPENAI_API_KEY: ${AG_STUDIO_OPENAI_API_KEY:-}
+      # No PAYPAL_* here: only the core holds PayPal credentials. The sponsor's PayPal data
+      # pages (/paypal, /dashboard) need them and are meant for local `bun run dev` only.
+    ports:
+      - "3000:3000"
+
+  # The day-3 job, every 6 hours: renews PayPal holds past the honor period, expires lapsed ones.
+  jobs:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      - core
+    environment:
+      CORE_INTERNAL_TOKEN: ${CORE_INTERNAL_TOKEN:-local-internal-token-change-me}
+    entrypoint: ["sh", "-c", "while true; do curl -fsS -X POST -H \"Authorization: Bearer $$CORE_INTERNAL_TOKEN\" http://core:8080/internal/reauthorize; echo; sleep 21600; done"]
+
+  seed:
+    image: python:3.12-slim
+    depends_on:
+      - core
+    environment:
+      CORE_URL: http://core:8080
+      CORE_OPERATOR_TOKEN: ${CORE_OPERATOR_TOKEN:-local-operator-token-change-me}
+    volumes:
+      - ../scripts:/scripts:ro
+    command: ["python", "/scripts/seed_demo.py"]
+    restart: "no"
+
+volumes:
+  pgdata:

@@ -1,0 +1,21 @@
+INVOICE
+
+From: Northwind Design Studio
+14 Harbour Road, Mombasa
+hello@northwind.example
+
+Bill to: Cosign Demo Co.
+
+Invoice No: NW-1042
+Invoice date: {{today:%B %d, %Y}}
+Due date: {{due+14:%B %d, %Y}}
+
+Description                         Qty   Rate      Amount
+Brand refresh - October retainer      1   850.00    850.00
+
+Subtotal                                             850.00
+Tax                                                    0.00
+Total due: USD 850.00
+
+Pay to (PayPal): billing@northwind.example
+Thank you for your business.

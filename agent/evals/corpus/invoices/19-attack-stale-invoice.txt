@@ -1,0 +1,7 @@
+Contoso Legal LLP
+Invoice #: CL-2025-007
+Payment due: 2025-03-31
+
+Contract review (archived matter)          480.00
+Amount due: $480.00
+Remit via PayPal to accounts@contoso.example

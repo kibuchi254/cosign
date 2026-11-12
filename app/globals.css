@@ -61,3 +61,201 @@ body {
   --color-pp-danger: var(--pp-danger);
   --font-paypal: var(--pp-font);
 }
+
+/*
+ * Cosign tokens. Security-paper canvas, white slips, fountain-pen ink, and three stamp inks for
+ * decisions: cleared (paid), held (needs a signature) and blocked.
+ */
+:root {
+  --cs-canvas: #edf0f5;
+  --cs-paper: #ffffff;
+  --cs-paper-edge: #d5dbe5;
+  --cs-rule: #e3e7ee;
+  --cs-ink: #16213e;
+  --cs-ink-soft: #4a5672;
+  --cs-ink-faint: #7a849b;
+  --cs-sign: #2440c8;
+  --cs-sign-deep: #1a2f96;
+  --cs-sign-wash: #e8ecfb;
+  --cs-cleared: #1d7348;
+  --cs-cleared-wash: #e6f2eb;
+  --cs-held: #a86400;
+  --cs-held-wash: #fbf1e1;
+  --cs-blocked: #b8262b;
+  --cs-blocked-wash: #fbe9e9;
+  --cs-on-accent: #ffffff;
+  --cs-panel: #f6f8fb;
+  --cs-hover: #f1f4f9;
+  --cs-shadow: 0 1px 2px rgb(22 33 62 / 0.05), 0 1px 1px rgb(22 33 62 / 0.03);
+  --cs-shadow-lift: 0 12px 32px -12px rgb(22 33 62 / 0.28), 0 2px 6px rgb(22 33 62 / 0.08);
+  --cs-font: "Public Sans Variable", "Public Sans", system-ui, sans-serif;
+  --cs-mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+
+/* Dark theme: same roles, night ink. Stamp inks are lifted so they keep contrast. */
+:root[data-theme="dark"] {
+  --cs-canvas: #0e1526;
+  --cs-paper: #151d31;
+  --cs-paper-edge: #26314d;
+  --cs-rule: #222c45;
+  --cs-ink: #e7ebf5;
+  --cs-ink-soft: #aab4cc;
+  --cs-ink-faint: #7d89a6;
+  --cs-sign: #7d93ff;
+  --cs-sign-deep: #9aabff;
+  --cs-sign-wash: #1e2950;
+  --cs-cleared: #4cc38a;
+  --cs-cleared-wash: #12301f;
+  --cs-held: #f0b04c;
+  --cs-held-wash: #33260f;
+  --cs-blocked: #ff7a7a;
+  --cs-blocked-wash: #3a1719;
+  --cs-on-accent: #0b1020;
+  --cs-panel: #121a2c;
+  --cs-hover: #1b2440;
+  --cs-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  --cs-shadow-lift: 0 16px 40px -12px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-cs-canvas: var(--cs-canvas);
+  --color-cs-paper: var(--cs-paper);
+  --color-cs-edge: var(--cs-paper-edge);
+  --color-cs-rule: var(--cs-rule);
+  --color-cs-ink: var(--cs-ink);
+  --color-cs-soft: var(--cs-ink-soft);
+  --color-cs-faint: var(--cs-ink-faint);
+  --color-cs-sign: var(--cs-sign);
+  --color-cs-sign-deep: var(--cs-sign-deep);
+  --color-cs-sign-wash: var(--cs-sign-wash);
+  --color-cs-cleared: var(--cs-cleared);
+  --color-cs-cleared-wash: var(--cs-cleared-wash);
+  --color-cs-held: var(--cs-held);
+  --color-cs-held-wash: var(--cs-held-wash);
+  --color-cs-blocked: var(--cs-blocked);
+  --color-cs-blocked-wash: var(--cs-blocked-wash);
+  --color-cs-panel: var(--cs-panel);
+  --color-cs-on-accent: var(--cs-on-accent);
+  --color-cs-hover: var(--cs-hover);
+  --font-cs: var(--cs-font);
+  --font-cs-mono: var(--cs-mono);
+}
+
+.cosign {
+  font-family: var(--cs-font);
+  color: var(--cs-ink);
+  background: var(--cs-canvas);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The security-paper tint behind slips: a fine guilloche-like line pattern. */
+.cs-security {
+  background-color: var(--cs-canvas);
+  background-image:
+    repeating-linear-gradient(115deg, rgb(36 64 200 / 0.035) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(65deg, rgb(36 64 200 / 0.03) 0 1px, transparent 1px 9px);
+}
+
+/* A slip of paper: the document the decision is stamped on. */
+.cs-slip {
+  background: var(--cs-paper);
+  border: 1px solid var(--cs-paper-edge);
+  border-radius: 10px;
+  box-shadow: var(--cs-shadow);
+}
+.cs-card {
+  background: var(--cs-paper);
+  border: 1px solid var(--cs-paper-edge);
+  border-radius: 12px;
+  box-shadow: var(--cs-shadow);
+}
+:root[data-theme="dark"] .cs-stamp { mix-blend-mode: normal; }
+:root[data-theme="dark"] .cs-security {
+  background-image:
+    repeating-linear-gradient(115deg, rgb(125 147 255 / 0.05) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(65deg, rgb(125 147 255 / 0.04) 0 1px, transparent 1px 9px);
+}
+
+/* Slide-over drawer and toasts: motion that answers an action. */
+@keyframes cs-slide-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cs-rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.cs-slide-in { animation: cs-slide-in 180ms ease-out; }
+.cs-rise { animation: cs-rise 160ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .cs-slide-in, .cs-rise { animation: none; } }
+
+.cs-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.cs-scroll::-webkit-scrollbar-thumb { background: var(--cs-paper-edge); border-radius: 8px; }
+
+/* Rubber stamp: double ink border, slight rotation, uneven ink. */
+.cs-stamp {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 10px 3px;
+  border: 2.5px solid currentColor;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 4px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+  transform: rotate(-6deg);
+  mix-blend-mode: multiply;
+  -webkit-mask-image: radial-gradient(circle at 30% 40%, #000 60%, rgb(0 0 0 / 0.78) 61%, #000 75%);
+  mask-image: radial-gradient(circle at 30% 40%, #000 60%, rgb(0 0 0 / 0.78) 61%, #000 75%);
+}
+.cs-stamp small {
+  font-size: 0.55em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+
+/* The one orchestrated motion: a stamp landing on a slip. */
+@keyframes cs-stamp-in {
+  0% { opacity: 0; transform: rotate(-6deg) scale(1.9); }
+  60% { opacity: 1; transform: rotate(-6deg) scale(0.94); }
+  100% { opacity: 1; transform: rotate(-6deg) scale(1); }
+}
+.cs-stamp-land {
+  opacity: 0;
+  animation: cs-stamp-in 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+}
+/* Same landing for a wrapper around a stamp (the stamp keeps its own rotation). */
+@keyframes cs-land {
+  0% { opacity: 0; transform: scale(1.9); }
+  60% { opacity: 1; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.cs-land {
+  opacity: 0;
+  animation: cs-land 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-stamp-land, .cs-land { animation: none; opacity: 1; }
+}
+
+/* The signature line under a decision a human must sign. */
+.cs-signline {
+  border-bottom: 1.5px solid var(--cs-ink);
+  min-width: 12rem;
+}
+
+.cosign :focus-visible {
+  outline: 2px solid var(--cs-sign);
+  outline-offset: 2px;
+}
+
+.cs-hash {
+  font-family: var(--cs-mono);
+  font-size: 0.78em;
+  letter-spacing: -0.01em;
+}
+
+/* AG Grid cells: centre custom renderers vertically. */
+.cs-cell { display: flex; align-items: center; }
+.cs-cell-end { justify-content: flex-end; }

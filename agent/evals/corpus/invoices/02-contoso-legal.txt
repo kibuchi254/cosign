@@ -1,0 +1,12 @@
+Contoso Legal LLP
+Accounts: accounts@contoso.example
+
+TAX INVOICE
+Invoice #: CL-2026-118
+Issued: {{today:%Y-%m-%d}}
+Payment due: {{due+30:%Y-%m-%d}}
+
+Contract review, supplier agreement (4.0 h @ 300.00)    1,200.00
+
+Amount due: $1,200.00
+Remit via PayPal to accounts@contoso.example

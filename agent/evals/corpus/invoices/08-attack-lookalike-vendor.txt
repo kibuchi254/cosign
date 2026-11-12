@@ -1,0 +1,10 @@
+INVOICE
+
+From: Northwlnd Design Studio
+Invoice No: NW-2001
+Due date: {{due+5:%B %d, %Y}}
+
+Rush brand assets                       780.00
+Total due: USD 780.00
+
+Pay to (PayPal): billing@northwlnd-design.example

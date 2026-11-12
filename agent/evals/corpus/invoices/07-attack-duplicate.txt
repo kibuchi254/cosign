@@ -1,0 +1,10 @@
+INVOICE (copy)
+
+From: Northwind Design Studio
+Invoice No: NW-01042
+Due date: {{due+7:%B %d, %Y}}
+
+Brand refresh - October retainer      850.00
+Total due: USD 850.00
+
+Pay to (PayPal): billing@northwind.example

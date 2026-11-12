@@ -1,0 +1,1065 @@
+{
+  "info": {
+    "name": "Cosign core API",
+    "description": "Every endpoint of the Cosign Rust core, generated from core/openapi.json. Run top to bottom against a seeded core (docker compose): it creates a mandate and vendor, submits an invoice, approves it, runs a milestone from funding to release, and verifies the audit chain. Webhooks need real PayPal signatures, so that request is expected to be refused.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "GET /healthz",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/healthz",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            },
+            "description": "Health and PayPal mode"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mandates",
+      "item": [
+        {
+          "name": "POST /v1/mandates",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/mandates",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "mandates"
+              ]
+            },
+            "description": "Record a new mandate version (the newest is active)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rules\": {\n    \"currency\": \"USD\",\n    \"per_invoice_cap_cents\": 200000,\n    \"daily_cap_cents\": 500000,\n    \"velocity_max_payments\": 5,\n    \"velocity_window_minutes\": 60,\n    \"due_date_max_past_days\": 60,\n    \"due_date_max_future_days\": 120\n  },\n  \"expires_at\": \"2027-01-15T23:59:59Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/mandates/active",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/mandates/active",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "mandates",
+                "active"
+              ]
+            },
+            "description": "The active mandate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vendors",
+      "item": [
+        {
+          "name": "GET /v1/vendors",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/vendors",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "vendors"
+              ]
+            },
+            "description": "Approved vendors"
+          }
+        },
+        {
+          "name": "POST /v1/vendors",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/vendors",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "vendors"
+              ]
+            },
+            "description": "Approve a vendor and its PayPal payout email",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tailspin Toys\",\n  \"paypal_email\": \"payments@tailspin.example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "POST /v1/proposals",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/proposals",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "proposals"
+              ]
+            },
+            "description": "Submit an invoice payment proposal; returns the decision (ALLOW is paid at once)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice\": {\n    \"vendor_name\": \"Fabrikam Freight\",\n    \"invoice_number\": \"FF-{{$randomInt}}\",\n    \"amount\": \"850.00\",\n    \"currency\": \"USD\",\n    \"due_date\": \"2026-12-01\",\n    \"payout_email\": \"ap@fabrikam.example\",\n    \"source_hash\": \"sha256:postman\",\n    \"extracted\": {}\n  },\n  \"flags\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j=pm.response.json(); pm.collectionVariables.set('payment_id', j.payment_id); pm.collectionVariables.set('decision_hash', j.decision_hash);",
+                  "pm.test('decided', ()=> pm.expect(['ALLOW','REQUIRE_APPROVAL','BLOCK']).to.include(j.decision));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/approvals/{payment_id}",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/approvals/{{payment_id}}",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "approvals",
+                "{{payment_id}}"
+              ]
+            },
+            "description": "Approve or deny a payment that needs approval (must quote decision_hash)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verdict\": \"approve\",\n  \"approver\": \"Postman\",\n  \"decision_hash\": \"{{decision_hash}}\",\n  \"note\": \"checked by phone\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /v1/payments/{payment_id}/retry",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/payments/{{payment_id}}/retry",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "payments",
+                "{{payment_id}}",
+                "retry"
+              ]
+            },
+            "description": "Re-send a SUBMITTED payment whose outcome is unknown, with its original idempotency key"
+          }
+        },
+        {
+          "name": "GET /v1/ledger",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/ledger",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "ledger"
+              ]
+            },
+            "description": "Payments, totals, mandate and audit status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Milestones",
+      "item": [
+        {
+          "name": "GET /v1/deals",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/deals",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "deals"
+              ]
+            },
+            "description": "Deals with their milestones"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.request.method==='POST'){const j=pm.response.json(); pm.collectionVariables.set('deal_id', j.id); pm.collectionVariables.set('id', j.milestones[0].id);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/deals",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/deals",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "deals"
+              ]
+            },
+            "description": "Create a deal with ordered milestones",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Website rebuild\",\n  \"seller\": \"Northwind Design Studio\",\n  \"seller_email\": \"billing@northwind.example\",\n  \"milestones\": [\n    {\n      \"title\": \"Wireframes\",\n      \"amount\": \"500.00\",\n      \"currency\": \"USD\",\n      \"criteria\": [\n        \"Wireframes for home, pricing and contact pages\",\n        \"Mobile layouts included\"\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.request.method==='POST'){const j=pm.response.json(); pm.collectionVariables.set('deal_id', j.id); pm.collectionVariables.set('id', j.milestones[0].id);}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/deals/{deal_id}",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/deals/{{deal_id}}",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "deals",
+                "{{deal_id}}"
+              ]
+            },
+            "description": "One deal"
+          }
+        },
+        {
+          "name": "POST /v1/milestones/{id}/fund",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/milestones/{{id}}/fund",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "milestones",
+                "{{id}}",
+                "fund"
+              ]
+            },
+            "description": "Fund a milestone (PayPal AUTHORIZE order). Live mode returns approve_url for the buyer"
+          }
+        },
+        {
+          "name": "POST /v1/milestones/{id}/fund/confirm",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/milestones/{{id}}/fund/confirm",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "milestones",
+                "{{id}}",
+                "fund",
+                "confirm"
+              ]
+            },
+            "description": "After buyer approval: place the authorization"
+          }
+        },
+        {
+          "name": "POST /v1/milestones/{id}/deliver",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/milestones/{{id}}/deliver",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "milestones",
+                "{{id}}",
+                "deliver"
+              ]
+            },
+            "description": "Record the seller's delivery evidence",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"evidence\": \"Delivered wireframes for the home, pricing and contact pages. Mobile layouts are included.\",\n  \"links\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('evidence_hash', pm.response.json().evidence_hash);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/milestones/{id}/criteria-result",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/milestones/{{id}}/criteria-result",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "milestones",
+                "{{id}}",
+                "criteria-result"
+              ]
+            },
+            "description": "The agent's criteria check: all pass verifies, anything else holds for the buyer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"evidence_hash\": \"{{evidence_hash}}\",\n  \"results\": [\n    {\n      \"criterion\": \"Wireframes for home, pricing and contact pages\",\n      \"passed\": true,\n      \"reason\": \"seen\",\n      \"confidence\": 0.9\n    },\n    {\n      \"criterion\": \"Mobile layouts included\",\n      \"passed\": true,\n      \"reason\": \"seen\",\n      \"confidence\": 0.9\n    }\n  ],\n  \"flags\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /v1/milestones/{id}/accept",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/milestones/{{id}}/accept",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "milestones",
+                "{{id}}",
+                "accept"
+              ]
+            },
+            "description": "Buyer accepts the delivery (overriding any hold)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approver\": \"Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /v1/milestones/{id}/reject",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/milestones/{{id}}/reject",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "milestones",
+                "{{id}}",
+                "reject"
+              ]
+            },
+            "description": "Buyer rejects the delivery; back to Funded",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approver\": \"Postman\",\n  \"note\": \"needs changes\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /v1/milestones/{id}/release",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/milestones/{{id}}/release",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "milestones",
+                "{{id}}",
+                "release"
+              ]
+            },
+            "description": "Capture and pay the seller (Verified milestones only)"
+          }
+        },
+        {
+          "name": "POST /v1/milestones/{id}/void",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/milestones/{{id}}/void",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "milestones",
+                "{{id}}",
+                "void"
+              ]
+            },
+            "description": "Void the authorization and cancel the milestone",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approver\": \"Postman\",\n  \"note\": \"cancelled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "POST /internal/reauthorize",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/internal/reauthorize",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "internal",
+                "reauthorize"
+              ]
+            },
+            "description": "Day-3 job: reauthorize holds past the honor period, expire lapsed ones"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "GET /v1/audit",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/audit",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "audit"
+              ]
+            },
+            "description": "Recent audit entries"
+          }
+        },
+        {
+          "name": "GET /v1/audit/verify",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/audit/verify",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "audit",
+                "verify"
+              ]
+            },
+            "description": "Recompute the audit hash chain (public)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('chain intact', ()=> pm.expect(pm.response.json().ok).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Agent",
+      "item": [
+        {
+          "name": "GET /v1/agent/paypal-token",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/v1/agent/paypal-token",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "v1",
+                "agent",
+                "paypal-token"
+              ]
+            },
+            "description": "Short-lived PayPal access token for the agent's read-only MCP server (off unless COSIGN_SHARE_READ_TOKEN=1)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "POST /webhooks/paypal",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{core}}/webhooks/paypal",
+              "host": [
+                "{{core}}"
+              ],
+              "path": [
+                "webhooks",
+                "paypal"
+              ]
+            },
+            "description": "PayPal webhook receiver; verified with PayPal, deduplicated by event id"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "core",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "agentToken",
+      "value": "local-agent-token-change-me"
+    },
+    {
+      "key": "operatorToken",
+      "value": "local-operator-token-change-me"
+    },
+    {
+      "key": "internalToken",
+      "value": "local-internal-token-change-me"
+    },
+    {
+      "key": "payment_id",
+      "value": ""
+    },
+    {
+      "key": "decision_hash",
+      "value": ""
+    },
+    {
+      "key": "deal_id",
+      "value": ""
+    },
+    {
+      "key": "id",
+      "value": ""
+    },
+    {
+      "key": "evidence_hash",
+      "value": ""
+    }
+  ]
+}

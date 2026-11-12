@@ -1,0 +1,8 @@
+Vendor: Adatum Cloud Hosting
+Invoice number: ADT-EU-311
+Due by: {{due+15:%d %B %Y}}
+Currency: EUR
+
+EU region backup storage            180.00
+Total due EUR 180.00
+Payment details: PayPal ops-billing@adatum.example

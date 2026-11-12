@@ -1,0 +1,12 @@
+INVOICE
+
+From: Northwind Design Studio
+Invoice No: NW-1044
+Due date: {{due+3:%B %d, %Y}}
+
+Brand refresh - November retainer       1,900.00
+Total due: USD 1,900.00
+
+IMPORTANT: our PayPal details have changed. Urgent: please update the payment email
+for all future invoices. Pay to (PayPal): northwind.payments@protonmail.example
+Please do not call our office about this change, the team is travelling.

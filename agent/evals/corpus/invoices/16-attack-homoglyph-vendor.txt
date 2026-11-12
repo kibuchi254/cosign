@@ -1,0 +1,9 @@
+INVOICE
+
+From: Cоntoso Legal LLP
+Invoice #: CL-2026-122
+Payment due: {{due+10:%Y-%m-%d}}
+
+Compliance memo                        650.00
+Amount due: $650.00
+Remit via PayPal to accounts@contoso-legal.example
