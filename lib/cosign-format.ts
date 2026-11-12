@@ -72,7 +72,7 @@ export const AUDIT_KIND: Record<string, string> = {
   'payment.outcome_unknown': 'Payout outcome unknown',
   'payment.retried': 'Payment retried',
   'approval.recorded': 'Human decision',
-  'webhook.received': 'PayPal webhook',
+  'webhook.received': 'PayPal update',
   'deal.created': 'Deal created',
   'milestone.order_created': 'Funding order created',
   'milestone.funded': 'Milestone funded',
@@ -144,8 +144,21 @@ export function auditDetail(e: AuditEntry): string {
       return s('name');
     case 'deal.created':
       return `${s('title')} with ${s('seller')}`;
-    case 'webhook.received':
-      return s('event_type');
+    case 'webhook.received': {
+      // PAYMENT.PAYOUTS-ITEM.SUCCEEDED -> "Payout succeeded"; poll-* ids came from the status check.
+      const status = s('event_type').replace(/^PAYMENT\.PAYOUTS-ITEM\./, '').toLowerCase();
+      const words: Record<string, string> = {
+        succeeded: 'Payout succeeded: the money reached the receiver',
+        unclaimed: 'Payout unclaimed: the receiver has no PayPal account for that email yet',
+        failed: 'Payout failed',
+        returned: 'Payout returned to sender',
+        blocked: 'Payout blocked by PayPal',
+        held: 'Payout on hold at PayPal',
+        refunded: 'Payout refunded',
+      };
+      const via = s('event_id').startsWith('poll-') ? ' (status check)' : '';
+      return `${words[status] ?? s('event_type')}${via}`;
+    }
     case 'payment.submitted':
       return 'Payout request sent with its idempotency key';
     case 'milestone.funded':

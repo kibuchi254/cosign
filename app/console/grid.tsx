@@ -14,6 +14,7 @@ import {
   RowSelectionModule,
   RowStyleModule,
   TextFilterModule,
+  TooltipModule,
   themeQuartz,
   type ColDef,
   type GridApi,
@@ -23,7 +24,7 @@ import { AgGridProvider, AgGridReact } from 'ag-grid-react';
 import { Download, Search } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
 
-const modules = [CellStyleModule, ClientSideRowModelModule, TextFilterModule, NumberFilterModule, DateFilterModule, QuickFilterModule, ColumnAutoSizeModule, RowSelectionModule, RowStyleModule, CsvExportModule];
+const modules = [CellStyleModule, ClientSideRowModelModule, TextFilterModule, NumberFilterModule, DateFilterModule, QuickFilterModule, ColumnAutoSizeModule, RowSelectionModule, RowStyleModule, CsvExportModule, TooltipModule];
 
 export const cosignGridTheme = themeQuartz.withParams({
   fontFamily: 'var(--cs-font)',
@@ -71,7 +72,7 @@ export function Grid<T extends object>({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         {toolbar}
-        <label className="relative ml-auto w-full sm:w-72">
+        <label className="relative ml-auto w-full sm:w-56 2xl:w-72">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-cs-faint" />
           <input
             type="search"
@@ -98,9 +99,18 @@ export function Grid<T extends object>({
             theme={cosignGridTheme}
             rowData={rows}
             columnDefs={columns}
-            defaultColDef={{ filter: true, sortable: true, resizable: true, cellClass: 'cs-cell' }}
+            defaultColDef={{
+              filter: true,
+              sortable: true,
+              resizable: true,
+              cellClass: 'cs-cell',
+              // Truncated text stays readable: the browser tooltip shows the whole value.
+              tooltipValueGetter: (p) => (p.valueFormatted ?? (typeof p.value === 'object' ? undefined : p.value)) as string | undefined,
+            }}
+            enableBrowserTooltips
             quickFilterText={search}
-            autoSizeStrategy={{ type: 'fitGridWidth', defaultMinWidth: 110 }}
+            // Flex columns share the spare width; fixed ones keep the width they were given.
+            autoSizeStrategy={columns.some((c) => c.flex) ? undefined : { type: 'fitGridWidth', defaultMinWidth: 110 }}
             rowSelection={onRowClicked ? { mode: 'singleRow', checkboxes: false, enableClickSelection: true } : undefined}
             onRowClicked={onRowClicked ? (e: RowClickedEvent<T>) => e.data && onRowClicked(e.data) : undefined}
             onGridReady={(e) => {

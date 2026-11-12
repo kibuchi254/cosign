@@ -20,11 +20,11 @@ const FILTERS = [
 ];
 
 const columns: ColDef<Row>[] = [
-  { field: 'seq', headerName: 'No.', filter: 'agNumberColumnFilter', maxWidth: 110, sort: 'desc' },
-  { field: 'ts', headerName: 'When', valueFormatter: (p) => when(p.value), minWidth: 170 },
-  { field: 'title', headerName: 'Event', minWidth: 180 },
-  { field: 'detail', headerName: 'Detail', flex: 2, minWidth: 260, cellClass: 'cs-cell text-cs-soft' },
-  { field: 'hash', headerName: 'Seal', valueFormatter: (p) => String(p.value).slice(0, 12), cellClass: 'cs-cell cs-hash', minWidth: 140 },
+  { field: 'seq', headerName: 'No.', filter: 'agNumberColumnFilter', width: 96, sort: 'desc' },
+  { field: 'ts', headerName: 'When', valueFormatter: (p) => when(p.value), width: 175 },
+  { field: 'title', headerName: 'Event', flex: 1, minWidth: 170 },
+  { field: 'detail', headerName: 'Detail', flex: 2, minWidth: 220, cellClass: 'cs-cell text-cs-soft' },
+  { field: 'hash', headerName: 'Seal', valueFormatter: (p) => String(p.value).slice(0, 12), cellClass: 'cs-cell cs-hash', width: 150 },
 ];
 
 export function AuditView({ rows }: { rows: Row[] }) {
@@ -61,7 +61,8 @@ export function AuditView({ rows }: { rows: Row[] }) {
   );
 
   return (
-    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+    // The table gets the full width until an entry is opened; the timeline keeps the side panel.
+    <div className={`grid items-start gap-6 ${view === 'table' && !sel ? '' : 'xl:grid-cols-[minmax(0,1fr)_24rem]'}`}>
       <div>
         {view === 'table' ? (
           <Grid rows={shown} columns={columns} onRowClicked={setSel} searchLabel="Search the log" exportName="cosign-audit" toolbar={toolbar} getRowId={(r) => String(r.seq)} />
@@ -126,9 +127,9 @@ export function AuditView({ rows }: { rows: Row[] }) {
               </details>
             </div>
           </Card>
-        ) : (
+        ) : view === 'timeline' ? (
           <p className="text-sm text-cs-soft">Select an entry to see exactly what was recorded and sealed.</p>
-        )}
+        ) : null}
       </aside>
     </div>
   );

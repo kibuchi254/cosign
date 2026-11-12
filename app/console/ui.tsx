@@ -143,10 +143,12 @@ export function Reasons({ reasons, empty = 'No rule objected.' }: { reasons: Rea
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
+    // Helper text sits under the control, so inputs in the same row line up whether or not
+    // their neighbours have a hint.
     <label className="block">
       <span className="block text-sm font-semibold text-cs-ink">{label}</span>
-      {hint && <span className="block text-xs text-cs-faint">{hint}</span>}
       <span className="mt-1.5 block">{children}</span>
+      {hint && <span className="mt-1 block text-xs text-cs-faint">{hint}</span>}
     </label>
   );
 }

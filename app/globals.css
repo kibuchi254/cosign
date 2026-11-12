@@ -260,5 +260,10 @@ body {
 }
 
 /* AG Grid cells: centre custom renderers vertically. */
-.cs-cell { display: flex; align-items: center; }
+/* Grid cells: vertically centred, and long text is clipped with an ellipsis instead of running
+   into the next column (the full value shows as a tooltip on hover). */
+.cs-cell { display: flex; align-items: center; overflow: hidden; min-width: 0; }
 .cs-cell-end { justify-content: flex-end; }
+.cs-cell > .ag-cell-wrapper { min-width: 0; max-width: 100%; width: 100%; }
+.cs-cell-end > .ag-cell-wrapper { justify-content: flex-end; }
+.cs-cell .ag-cell-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

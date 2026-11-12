@@ -23,7 +23,7 @@ const TABS: { key: string; label: string; states: PaymentState[] | null }[] = [
 
 const VendorCell = ({ data }: ICellRendererParams<LedgerPayment>) =>
   data ? (
-    <span className="flex h-full items-center gap-3">
+    <span className="flex h-full w-full min-w-0 items-center gap-3 overflow-hidden">
       <Avatar name={data.vendor_name} size="sm" />
       <span className="min-w-0 leading-tight">
         <span className="block truncate font-semibold">{data.vendor_name}</span>
@@ -43,12 +43,12 @@ const StateCell = ({ data }: ICellRendererParams<LedgerPayment>) => {
 };
 
 const columns: ColDef<LedgerPayment>[] = [
-  { field: 'vendor_name', headerName: 'Vendor', cellRenderer: VendorCell, minWidth: 220, flex: 2, getQuickFilterText: (p) => `${p.data?.vendor_name} ${p.data?.invoice_number} ${p.data?.receiver_email}` },
-  { field: 'amount_cents', headerName: 'Amount', type: 'rightAligned', filter: 'agNumberColumnFilter', cellClass: 'cs-cell cs-cell-end font-semibold tabular-nums', valueFormatter: (p) => (p.data ? money(p.data.amount_cents, p.data.currency) : ''), minWidth: 120 },
-  { field: 'state', headerName: 'Status', cellRenderer: StateCell, minWidth: 190, valueFormatter: (p) => (p.value ? PAYMENT_STATE[p.value as PaymentState].label : '') },
-  { headerName: 'Why', valueGetter: (p) => (p.data?.reasons[0] ? REASON_LABEL[p.data.reasons[0].code] : 'Inside every limit'), flex: 2, minWidth: 220, cellClass: 'cs-cell text-cs-soft' },
-  { field: 'created_at', headerName: 'Decided', valueFormatter: (p) => when(p.value), sort: 'desc', minWidth: 170 },
-  { field: 'receiver_email', headerName: 'Pays', minWidth: 200, cellClass: 'cs-cell text-cs-soft' },
+  { field: 'vendor_name', headerName: 'Vendor', cellRenderer: VendorCell, minWidth: 210, flex: 2, getQuickFilterText: (p) => `${p.data?.vendor_name} ${p.data?.invoice_number} ${p.data?.receiver_email}` },
+  { field: 'amount_cents', headerName: 'Amount', type: 'rightAligned', filter: 'agNumberColumnFilter', cellClass: 'cs-cell cs-cell-end font-semibold tabular-nums', valueFormatter: (p) => (p.data ? money(p.data.amount_cents, p.data.currency) : ''), width: 130 },
+  { field: 'state', headerName: 'Status', cellRenderer: StateCell, width: 160, valueFormatter: (p) => (p.value ? PAYMENT_STATE[p.value as PaymentState].label : '') },
+  { headerName: 'Why', valueGetter: (p) => (p.data?.reasons[0] ? REASON_LABEL[p.data.reasons[0].code] : 'Inside every limit'), flex: 2, minWidth: 190, cellClass: 'cs-cell text-cs-soft' },
+  { field: 'created_at', headerName: 'Decided', valueFormatter: (p) => when(p.value), sort: 'desc', width: 170 },
+  { field: 'receiver_email', headerName: 'Pays', minWidth: 170, flex: 1.5, cellClass: 'cs-cell text-cs-soft' },
 ];
 
 export function PaymentsView({ payments, timelines, initialId, initialStatus }: { payments: LedgerPayment[]; timelines: Record<string, TimelineStep[]>; initialId: string | null; initialStatus: string }) {

@@ -58,10 +58,10 @@ export function MandateForm({ mandate, defaultExpiry }: { mandate: Mandate | nul
             <Field label="Window, in minutes">
               <input {...bind('velocity_window')} type="number" min={1} required className={inputClass} />
             </Field>
-            <Field label="Oldest due date accepted, days ago">
+            <Field label="Oldest due date, days ago">
               <input {...bind('past_days')} type="number" min={1} required className={inputClass} />
             </Field>
-            <Field label="Furthest due date accepted, days ahead">
+            <Field label="Furthest due date, days ahead">
               <input {...bind('future_days')} type="number" min={1} required className={inputClass} />
             </Field>
           </div>
