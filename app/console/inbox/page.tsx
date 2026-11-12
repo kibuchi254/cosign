@@ -105,7 +105,7 @@ function Detail({ p, review }: { p: LedgerPayment; review: Review | null }) {
       <Link href="/console/inbox?id=" className="flex items-center gap-1 border-b border-cs-rule px-5 py-3 text-sm font-semibold text-cs-sign lg:hidden">
         <ArrowLeft aria-hidden className="size-4" /> All waiting payments
       </Link>
-      <div className="grid xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid 2xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="p-5 sm:p-6">
           <div className="flex items-start gap-4">
             <Avatar name={p.vendor_name} />
@@ -164,7 +164,7 @@ function Detail({ p, review }: { p: LedgerPayment; review: Review | null }) {
             Decided {when(p.created_at)} under mandate <Hash value={p.mandate_hash} n={10} />. Decision <Hash value={p.decision_hash} n={10} />.
           </p>
         </div>
-        <div className="border-t border-cs-rule bg-cs-panel p-5 xl:rounded-r-xl xl:border-t-0 xl:border-l">
+        <div className="border-t border-cs-rule bg-cs-panel p-5 2xl:rounded-r-xl 2xl:border-t-0 2xl:border-l">
           <SignForm
             key={p.payment_id}
             paymentId={p.payment_id}
