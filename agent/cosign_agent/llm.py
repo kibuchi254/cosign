@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
@@ -30,6 +31,7 @@ from pydantic import BaseModel, ValidationError
 
 T = TypeVar("T", bound=BaseModel)
 
+log = logging.getLogger("cosign_agent.llm")
 REPLAY_DIR = Path(os.environ.get("COSIGN_REPLAY_DIR", Path(__file__).resolve().parent.parent / "replay"))
 DEFAULT_MODEL = "claude-haiku-5-5"
 DEFAULT_MODELS = {"anthropic": DEFAULT_MODEL, "openai": "gpt-5.4-mini", "openrouter": "z-ai/glm-5.2"}
@@ -249,8 +251,13 @@ def complete(task: str, schema: type[T], document: str) -> Completion:
                 raise
             fallback = OFFLINE[task](document)
             return Completion(_validate(schema, fallback), f"offline (model unavailable: {str(e)[:80]})")
-        REPLAY_DIR.mkdir(parents=True, exist_ok=True)
-        cache_file.write_text(json.dumps({"task": task, "model": f"{provider}:{model}", "answer": obj}, indent=2), encoding="utf-8")
+        # The saved copy only saves a repeat call; failing to write it must never lose an answer
+        # that was already read and validated (or fail the request).
+        try:
+            REPLAY_DIR.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(json.dumps({"task": task, "model": f"{provider}:{model}", "answer": obj}, indent=2), encoding="utf-8")
+        except OSError as e:
+            log.warning("could not save the model answer to %s: %s", REPLAY_DIR, e)
         return Completion(value, f"live:{provider}:{model}")
 
     reader = OFFLINE.get(task)

@@ -9,7 +9,7 @@ COPY replay ./replay
 # in this image, so a photographed invoice never fails for the first time in front of a user.
 RUN pip install --no-cache-dir . \
     && python -c "from rapidocr import RapidOCR; RapidOCR()" \
-    && useradd --system --uid 10002 agent
+    && useradd --system --uid 10002 agent     && chown -R agent /app/replay
 USER agent
 ENV PORT=8000 COSIGN_LLM_MODE=replay
 EXPOSE 8000
