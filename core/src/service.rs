@@ -616,6 +616,48 @@ pub async fn apply_verified_event(state: &AppState, event: &Value) -> Result<Web
     Ok(WebhookResult { event_id, event_type, duplicate: false, applied })
 }
 
+/// Asks PayPal for the status of every payout still in flight and applies it like a webhook.
+/// Webhooks need a public URL; a local demo or a missed delivery has neither, so the core also
+/// polls. Each (item, status) pair is recorded once, so polling never repeats an audit entry.
+pub async fn reconcile_payouts(state: &AppState) -> Result<Vec<WebhookResult>> {
+    let Some(client) = state.paypal.as_ref() else { return Ok(vec![]) };
+    let rows = sqlx::query("SELECT DISTINCT paypal_payout_ref FROM payments WHERE state = 'SUBMITTED' AND paypal_payout_ref IS NOT NULL LIMIT 50")
+        .fetch_all(&state.pool)
+        .await?;
+    let mut out = Vec::new();
+    for row in rows {
+        let batch: String = row.get("paypal_payout_ref");
+        let v = match client.get_payout(&batch).await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(%batch, error = %e, "could not read payout status");
+                continue;
+            }
+        };
+        for item in v.get("items").and_then(Value::as_array).cloned().unwrap_or_default() {
+            let (Some(item_id), Some(status)) = (item.get("payout_item_id").and_then(Value::as_str), item.get("transaction_status").and_then(Value::as_str)) else { continue };
+            let suffix = match status {
+                "SUCCESS" => "SUCCEEDED",
+                "ONHOLD" => "HELD",
+                "PENDING" | "NEW" => continue,
+                s => s,
+            };
+            let event = json!({
+                "id": format!("poll-{item_id}-{status}"),
+                "event_type": format!("PAYMENT.PAYOUTS-ITEM.{suffix}"),
+                "source": "status poll (GET /v1/payments/payouts)",
+                "resource": item,
+            });
+            let r = apply_verified_event(state, &event).await?;
+            if !r.duplicate {
+                tracing::info!(%batch, %item_id, %status, applied = ?r.applied, "payout status from PayPal");
+                out.push(r);
+            }
+        }
+    }
+    Ok(out)
+}
+
 // --- Ledger ---------------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]

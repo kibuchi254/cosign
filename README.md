@@ -95,6 +95,7 @@ Read these as a regression suite, not as accuracy claims. The corpus and the det
 | PayPal Payouts | Paying invoices and releasing milestones (`core/src/paypal.rs`, `executor.rs`) |
 | PayPal Orders v2: authorize, capture, reauthorize, void | Milestone escrow and the day-3 reauthorization job (`core/src/milestones.rs`) |
 | PayPal webhook signature verification | `POST /webhooks/paypal`, raw body forwarded unchanged |
+| PayPal payout status (`GET /v1/payments/payouts/{id}`) | A poller in the core follows in-flight payouts, so outcomes land in the audit chain even with no public webhook URL (`reconcile_payouts` in `core/src/service.rs`; `PAYOUT_POLL_SECONDS`, default 20) |
 | PayPal MCP server (read-only allowlist) | `agent/cosign_agent/paypal_read.py`; off unless the core shares a token |
 | AG Grid | Payments and audit grids in the console |
 | AG Studio | **Reports**: spend vs mandate, why payments were stopped, escrow, with the Studio assistant when an OpenAI key is set |
@@ -104,7 +105,7 @@ Read these as a regression suite, not as accuracy claims. The corpus and the det
 
 ## Known limits, and what a real launch needs
 
-- **Not run against the real PayPal sandbox yet.** Everything above runs in simulation; the PayPal client is tested against a local fake. Run the gate script first.
+- **Payouts run against the real PayPal sandbox** (Nov 12: an ALLOW decision created sandbox batch `QVPVQZ6JX5CVA`, accepted by PayPal). The demo vendors' `.example` emails are not sandbox accounts, so PayPal reports those items as `UNCLAIMED`; point a vendor at a sandbox **personal** account to see `SUCCESS`. Milestone escrow (Orders authorize/capture) has not been run against the sandbox yet; use the gate script for that.
 - Docker images and the Render blueprint have not been built or deployed from this repo yet.
 - The MCP tool names follow the blueprint's reading of PayPal's docs and are unverified, and PayPal tokens cannot be scoped to read-only, so token sharing is off by default.
 - One shared demo password and static service tokens. A launch needs real user accounts for approvers.
@@ -114,4 +115,4 @@ Read these as a regression suite, not as accuracy claims. The corpus and the det
 
 ## License
 
-Add a license before submitting (the rules require one visible in the repo's About section).
+[MIT](LICENSE).

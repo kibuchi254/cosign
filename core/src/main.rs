@@ -14,6 +14,21 @@ async fn main() -> anyhow::Result<()> {
         None => tracing::warn!("PAYPAL_CLIENT_ID/PAYPAL_SECRET not set: payouts are simulated and webhooks are refused"),
     }
 
+    // Follow PayPal payout outcomes without depending on a public webhook URL.
+    if state.paypal.is_some() {
+        let poll_state = state.clone();
+        let secs: u64 = std::env::var("PAYOUT_POLL_SECONDS").ok().and_then(|s| s.parse().ok()).unwrap_or(20);
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(secs.max(5)));
+            loop {
+                tick.tick().await;
+                if let Err(e) = cosign_core::service::reconcile_payouts(&poll_state).await {
+                    tracing::warn!(error = %e, "payout status poll failed");
+                }
+            }
+        });
+    }
+
     let cors = match std::env::var("CORS_ALLOW_ORIGIN") {
         Ok(origin) if !origin.is_empty() => CorsLayer::new()
             .allow_origin(origin.parse::<axum::http::HeaderValue>()?)
