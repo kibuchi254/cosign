@@ -3,6 +3,23 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+
+
+def _load_local_env() -> None:
+    """Reads agent/.env (git-ignored) for local runs. Variables already set win."""
+    path = Path(__file__).resolve().parent.parent / ".env"
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_local_env()
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
@@ -40,7 +57,7 @@ def caller(authorization: str | None = Header(default=None)) -> None:
 
 @app.get("/healthz")
 def health() -> dict:
-    return {"ok": True, "llm_mode": llm._mode(), "holds_paypal_secret": False}
+    return {"ok": True, **llm.describe(), "holds_paypal_secret": False}
 
 
 @app.post("/agent/read-invoice", response_model=ReadInvoiceResponse, dependencies=[Depends(caller)])

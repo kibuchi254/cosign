@@ -47,3 +47,4 @@ __pycache__/
 *.egg-info/
 /agent/evals/results.json
 .pytest_cache/
+!agent/.env.example

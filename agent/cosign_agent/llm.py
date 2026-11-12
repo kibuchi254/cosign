@@ -6,6 +6,10 @@ Modes (COSIGN_LLM_MODE):
   live    call the model, validate, save the answer to the replay cache.
   offline never call a model; deterministic readers only (CI, evals).
 
+Providers (COSIGN_LLM_PROVIDER): anthropic, openai, openrouter (OPENROUTER_API_KEY; default
+model z-ai/glm-5.2). A failed model call fails closed (UNREADABLE). COSIGN_LLM_FALLBACK=offline
+opts in to the deterministic reader instead; the answer's source says so, and the core decides.
+
 The document is always passed as data inside a delimited block, and the model has no tools.
 Answers are validated against a pydantic schema; anything else raises Unreadable."""
 
@@ -28,6 +32,8 @@ T = TypeVar("T", bound=BaseModel)
 
 REPLAY_DIR = Path(os.environ.get("COSIGN_REPLAY_DIR", Path(__file__).resolve().parent.parent / "replay"))
 DEFAULT_MODEL = "claude-haiku-5-5"
+DEFAULT_MODELS = {"anthropic": DEFAULT_MODEL, "openai": "gpt-5.4-mini", "openrouter": "z-ai/glm-5.2"}
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 class Unreadable(Exception):
@@ -127,10 +133,61 @@ def _call_openai(task: str, schema: type[BaseModel], document: str, model: str) 
     return r.json()["choices"][0]["message"]["content"]
 
 
+def _call_openrouter(task: str, schema: type[BaseModel], document: str, model: str) -> str:
+    """OpenRouter speaks the OpenAI chat format. Reasoning models (GLM 5.x) spend part of
+    max_tokens thinking, so the budget is larger and the reasoning is kept out of the reply."""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        raise Unreadable("COSIGN_LLM_PROVIDER=openrouter but OPENROUTER_API_KEY is not set")
+    try:
+        r = httpx.post(
+            os.environ.get("OPENROUTER_URL", OPENROUTER_URL),
+            headers={
+                "authorization": f"Bearer {key}",
+                "X-Title": "Cosign",
+                "HTTP-Referer": os.environ.get("OPENROUTER_SITE_URL", "http://localhost:3000"),
+            },
+            json={
+                "model": model,
+                "temperature": 0,
+                "max_tokens": int(os.environ.get("COSIGN_LLM_MAX_TOKENS", "4000")),
+                "response_format": {"type": "json_object"},
+                "reasoning": {"effort": os.environ.get("COSIGN_LLM_REASONING", "low"), "exclude": True},
+                "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": _prompt(task, schema, document)}],
+            },
+            timeout=float(os.environ.get("COSIGN_LLM_TIMEOUT", "90")),
+        )
+    except httpx.HTTPError as e:
+        raise Unreadable(f"model call failed: {type(e).__name__}") from e
+    if r.status_code != 200:
+        detail = ""
+        try:
+            detail = r.json().get("error", {}).get("message", "")[:160]
+        except Exception:
+            pass
+        raise Unreadable(f"model call failed: HTTP {r.status_code} {detail}".strip())
+    choice = (r.json().get("choices") or [{}])[0]
+    content = (choice.get("message") or {}).get("content")
+    if not content:
+        raise Unreadable(f"model returned no content (finish_reason={choice.get('finish_reason')})")
+    return content
+
+
 PROVIDERS: dict[str, Callable[[str, type[BaseModel], str, str], str]] = {
     "anthropic": _call_anthropic,
     "openai": _call_openai,
+    "openrouter": _call_openrouter,
 }
+
+
+def describe() -> dict:
+    """What /healthz reports: mode, provider and model (never a key)."""
+    provider = os.environ.get("COSIGN_LLM_PROVIDER", "anthropic").strip().lower()
+    return {
+        "llm_mode": _mode(),
+        "llm_provider": provider,
+        "llm_model": os.environ.get("COSIGN_LLM_MODEL") or DEFAULT_MODELS.get(provider, DEFAULT_MODEL),
+    }
 
 # Deterministic readers per task, used offline and on replay misses.
 OFFLINE: dict[str, Callable[[str], dict]] = {}
@@ -168,7 +225,7 @@ def _validate(schema: type[T], obj: dict) -> T:
 def complete(task: str, schema: type[T], document: str) -> Completion:
     mode = _mode()
     provider = os.environ.get("COSIGN_LLM_PROVIDER", "anthropic").strip().lower()
-    model = os.environ.get("COSIGN_LLM_MODEL", DEFAULT_MODEL)
+    model = os.environ.get("COSIGN_LLM_MODEL") or DEFAULT_MODELS.get(provider, DEFAULT_MODEL)
     key = cache_key(task, document, f"{provider}:{model}")
     cache_file = REPLAY_DIR / f"{key}.json"
 
@@ -180,10 +237,18 @@ def complete(task: str, schema: type[T], document: str) -> Completion:
         call = PROVIDERS.get(provider)
         if call is None:
             raise Unreadable(f"unknown COSIGN_LLM_PROVIDER {provider!r}")
-        _spend_one_call()
-        raw = call(task, schema, document, model)
-        obj = parse_json_object(raw)
-        value = _validate(schema, obj)  # validate before caching: never replay a bad answer
+        try:
+            _spend_one_call()
+            raw = call(task, schema, document, model)
+            obj = parse_json_object(raw)
+            value = _validate(schema, obj)  # validate before caching: never replay a bad answer
+        except Unreadable as e:
+            # Opt-in: during a model outage, read deterministically instead and say so. The
+            # injection scan and the core's rules apply either way. Default is fail closed.
+            if os.environ.get("COSIGN_LLM_FALLBACK", "off").lower() != "offline" or task not in OFFLINE:
+                raise
+            fallback = OFFLINE[task](document)
+            return Completion(_validate(schema, fallback), f"offline (model unavailable: {str(e)[:80]})")
         REPLAY_DIR.mkdir(parents=True, exist_ok=True)
         cache_file.write_text(json.dumps({"task": task, "model": f"{provider}:{model}", "answer": obj}, indent=2), encoding="utf-8")
         return Completion(value, f"live:{provider}:{model}")

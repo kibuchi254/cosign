@@ -175,3 +175,15 @@ export function auditTone(e: AuditEntry): Tone {
   if (e.kind === 'approval.recorded') return (e.payload as { verdict?: string }).verdict === 'approve' ? 'cleared' : 'neutral';
   return 'sign';
 }
+
+const PROVIDER_NAME: Record<string, string> = { openrouter: 'OpenRouter', anthropic: 'Anthropic', openai: 'OpenAI' };
+
+/** Who read the document, in words: "live:openrouter:z-ai/glm-5.2" -> "z-ai/glm-5.2 via OpenRouter". */
+export function readerLabel(source: string): string {
+  if (source === 'offline') return 'Deterministic reader (no model key)';
+  if (source === 'replay') return 'Saved model answer (replay)';
+  if (source.startsWith('offline (')) return `Deterministic reader, model unavailable`;
+  const m = /^live:([^:]+):(.+)$/.exec(source);
+  if (m) return `${m[2]} via ${PROVIDER_NAME[m[1]] ?? m[1]}`;
+  return source;
+}

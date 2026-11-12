@@ -116,6 +116,26 @@ def test_live_without_key_fails_closed(monkeypatch):
         complete(TASK, InvoiceFields, NORMAL)
 
 
+def test_openrouter_without_key_fails_closed(monkeypatch):
+    monkeypatch.setenv("COSIGN_LLM_MODE", "live")
+    monkeypatch.setenv("COSIGN_LLM_PROVIDER", "openrouter")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("COSIGN_LLM_FALLBACK", raising=False)
+    with pytest.raises(Unreadable, match="OPENROUTER_API_KEY"):
+        complete(TASK, InvoiceFields, NORMAL)
+    assert llm.describe()["llm_model"] == "z-ai/glm-5.2"
+
+
+def test_opt_in_fallback_reads_offline_and_says_so(monkeypatch):
+    monkeypatch.setenv("COSIGN_LLM_MODE", "live")
+    monkeypatch.setenv("COSIGN_LLM_PROVIDER", "openrouter")
+    monkeypatch.setenv("COSIGN_LLM_FALLBACK", "offline")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    result = complete(TASK, InvoiceFields, NORMAL)
+    assert result.source.startswith("offline (model unavailable")
+    assert result.value.invoice_number == "NW-1042"
+
+
 def test_live_answers_are_validated_then_cached_and_replayed(monkeypatch, tmp_path):
     calls = []
 

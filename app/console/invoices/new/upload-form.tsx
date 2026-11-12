@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { CircleCheck, FileText, FileUp, Inbox, LoaderCircle, Plus, ReceiptText, ShieldAlert, Sparkles, UploadCloud, X } from 'lucide-react';
-import { moneyStr, OUTCOME, PAYMENT_STATE, day } from '@/lib/cosign-format';
+import { moneyStr, OUTCOME, PAYMENT_STATE, day, readerLabel } from '@/lib/cosign-format';
 import type { ReadInvoiceResponse } from '@/lib/cosign-types';
 import { submitInvoice } from '../../actions';
 import { Submit } from '../../client';
@@ -263,7 +263,7 @@ function Decision({ result, onAnother }: { result: ReadInvoiceResponse; onAnothe
         <dt className="text-cs-faint">Due</dt>
         <dd>{f.due_date ? day(f.due_date) : 'Not stated'}</dd>
         <dt className="text-cs-faint">Read by</dt>
-        <dd>{result.extractor === 'offline' ? 'Deterministic reader (no model key)' : result.extractor}</dd>
+        <dd>{readerLabel(result.extractor)}</dd>
         <dt className="text-cs-faint">Document</dt>
         <dd>
           <Hash value={result.source_hash} n={16} />
