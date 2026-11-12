@@ -15,11 +15,13 @@ includes the OCR engine). Give the server at least 2 GB of RAM, or add swap, for
 
 ## 2. Environment (Environment tab)
 
-Generate each secret with `openssl rand -hex 24` (hex only: the Postgres password goes into a URL).
+A ready-to-paste set for this deployment, with fresh secrets, can be kept in `deploy/.env.dokploy`
+(git-ignored, never committed). Otherwise, generate each secret with `openssl rand -hex 24` (hex only: the Postgres password goes into a URL).
 All three tokens must be different.
 
 | Variable | Required | What it is |
 |---|---|---|
+| `COSIGN_PUBLIC_URL` | yes | The one public domain, e.g. `https://cosign.digikenya.co.ke` (PayPal return links, OpenRouter attribution) |
 | `POSTGRES_PASSWORD` | yes | Database password |
 | `CORE_AGENT_TOKEN` | yes | Agent → core (propose only) |
 | `CORE_OPERATOR_TOKEN` | yes | Web → core (approvals, vendors, mandate) |

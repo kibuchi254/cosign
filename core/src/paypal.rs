@@ -20,6 +20,9 @@ pub struct PayPalConfig {
     pub secret: String,
     /// The webhook ID from the developer dashboard; needed to verify signatures.
     pub webhook_id: Option<String>,
+    /// The public web address (COSIGN_PUBLIC_URL). PayPal sends a buyer back here after they
+    /// approve or cancel a milestone hold.
+    pub public_url: String,
 }
 
 impl PayPalConfig {
@@ -27,10 +30,15 @@ impl PayPalConfig {
         let client_id = std::env::var("PAYPAL_CLIENT_ID").ok().filter(|s| !s.is_empty())?;
         let secret = std::env::var("PAYPAL_SECRET").ok().filter(|s| !s.is_empty())?;
         Some(PayPalConfig {
-            base_url: std::env::var("PAYPAL_BASE_URL").unwrap_or_else(|_| SANDBOX_BASE_URL.to_string()),
+            base_url: std::env::var("PAYPAL_BASE_URL").ok().filter(|s| !s.trim().is_empty()).unwrap_or_else(|| SANDBOX_BASE_URL.to_string()),
             client_id,
             secret,
             webhook_id: std::env::var("PAYPAL_WEBHOOK_ID").ok().filter(|s| !s.is_empty()),
+            public_url: std::env::var("COSIGN_PUBLIC_URL")
+                .ok()
+                .map(|s| s.trim().trim_end_matches('/').to_string())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "http://localhost:3000".to_string()),
         })
     }
 }
@@ -186,13 +194,16 @@ impl PayPalClient {
 
     /// Creates an AUTHORIZE order. The buyer must open the returned approve link.
     pub async fn create_authorize_order(&self, value: &str, currency: &str, reference: &str, request_id: &str) -> Result<CreatedOrder, PayPalError> {
+        // After approving (or cancelling) at PayPal the buyer lands back on the milestones page,
+        // where "I approved it, place the hold" finishes the step.
+        let back = format!("{}/console/milestones", self.cfg.public_url);
         let body = json!({
             "intent": "AUTHORIZE",
             "purchase_units": [{ "reference_id": reference, "amount": { "currency_code": currency, "value": value } }],
             "payment_source": { "paypal": { "experience_context": {
                 "user_action": "PAY_NOW",
-                "return_url": "https://example.com/return",
-                "cancel_url": "https://example.com/cancel"
+                "return_url": format!("{back}?paypal=approved"),
+                "cancel_url": format!("{back}?paypal=cancelled")
             } } }
         });
         let v = self.call(Method::POST, "/v2/checkout/orders", Some(body.to_string()), Some(request_id)).await?;

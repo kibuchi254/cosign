@@ -21,6 +21,7 @@ struct Fake {
     request_ids: Vec<String>,
     fail_first_payout_with: Option<u16>,
     verify_bodies: Vec<String>,
+    order_bodies: Vec<Value>,
 }
 
 type Shared = Arc<Mutex<Fake>>;
@@ -54,12 +55,18 @@ async fn verify(State(s): State<Shared>, body: String) -> impl IntoResponse {
     Json(json!({ "verification_status": if ok { "SUCCESS" } else { "FAILURE" } }))
 }
 
+async fn orders(State(s): State<Shared>, body: Bytes) -> impl IntoResponse {
+    s.lock().unwrap().order_bodies.push(serde_json::from_slice(&body).unwrap());
+    (StatusCode::CREATED, Json(json!({ "id": "ORDER-1", "links": [{ "rel": "payer-action", "href": "https://paypal.test/approve" }] })))
+}
+
 async fn start() -> (Shared, PayPalClient) {
     let shared: Shared = Arc::default();
     let app = Router::new()
         .route("/v1/oauth2/token", post(token))
         .route("/v1/payments/payouts", post(payouts))
         .route("/v1/notifications/verify-webhook-signature", post(verify))
+        .route("/v2/checkout/orders", post(orders))
         .with_state(shared.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -69,6 +76,7 @@ async fn start() -> (Shared, PayPalClient) {
         client_id: "id".into(),
         secret: "secret".into(),
         webhook_id: Some("WH-123".into()),
+        public_url: "https://cosign.test".into(),
     });
     (shared, client)
 }
@@ -130,4 +138,14 @@ async fn webhook_body_is_forwarded_byte_for_byte() {
     assert_eq!(f.verify_bodies.len(), 2);
     assert!(f.verify_bodies[0].ends_with(&format!(r#""webhook_event":{raw}}}"#)));
     assert!(f.verify_bodies[0].contains(r#""webhook_id":"WH-123""#));
+}
+
+#[tokio::test]
+async fn paypal_sends_the_buyer_back_to_the_app() {
+    let (fake, client) = start().await;
+    let order = client.create_authorize_order("500.00", "USD", "m-1", "req-1").await.unwrap();
+    assert_eq!(order.approve_url.as_deref(), Some("https://paypal.test/approve"));
+    let ctx = &fake.lock().unwrap().order_bodies[0]["payment_source"]["paypal"]["experience_context"];
+    assert_eq!(ctx["return_url"], "https://cosign.test/console/milestones?paypal=approved");
+    assert_eq!(ctx["cancel_url"], "https://cosign.test/console/milestones?paypal=cancelled");
 }

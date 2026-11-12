@@ -42,6 +42,8 @@ services:
       PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
       PAYPAL_SECRET: ${PAYPAL_SECRET:-}
       PAYPAL_WEBHOOK_ID: ${PAYPAL_WEBHOOK_ID:-}
+      # Where PayPal sends a buyer back after approving a milestone hold.
+      COSIGN_PUBLIC_URL: ${COSIGN_PUBLIC_URL:?set COSIGN_PUBLIC_URL, e.g. https://cosign.example.com}
       RUST_LOG: cosign_core=info,tower_http=info
     expose:
       - "8080"
@@ -59,6 +61,8 @@ services:
       COSIGN_LLM_MODEL: ${COSIGN_LLM_MODEL:-z-ai/glm-5.2}
       COSIGN_LLM_FALLBACK: ${COSIGN_LLM_FALLBACK:-off}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Identifies the app to OpenRouter (shown on your OpenRouter activity page).
+      OPENROUTER_SITE_URL: ${COSIGN_PUBLIC_URL:?set COSIGN_PUBLIC_URL}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # No PAYPAL_* here, by design: the agent cannot move money.
     expose:
