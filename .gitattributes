@@ -1,0 +1,2 @@
+# sqlx checksums migrations; keep them byte-identical on Windows and Linux.
+*.sql text eol=lf

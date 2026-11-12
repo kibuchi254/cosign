@@ -1,0 +1,7 @@
+Contoso Legal LLP
+Invoice #: CL-2026-120
+Payment due: {{due+14:%Y-%m-%d}}
+
+Contract review (16.0 h @ 300.00)       4,800.00
+Amount due: $4,800.00
+Remit via PayPal to accounts@contoso.example

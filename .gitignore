@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cosign services
+/core/target/
+.venv/
+__pycache__/
+*.egg-info/
+/agent/evals/results.json
+.pytest_cache/

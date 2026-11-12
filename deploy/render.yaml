@@ -1,0 +1,115 @@
+# Render Blueprint for Cosign. Render reads render.yaml from the repo root: copy this file
+# there, or point the Blueprint at deploy/render.yaml in the dashboard.
+# Check current instance pricing before choosing plans; the $50 credit must last to Dec 15.
+# Not yet deployed: verify the private-network host:port wiring on first deploy.
+
+databases:
+  - name: cosign-db
+    plan: basic-256mb
+    databaseName: cosign
+    user: cosign
+
+services:
+  # Rust core: the only service with PayPal credentials. Public so PayPal can deliver webhooks.
+  - type: web
+    name: cosign-core
+    runtime: docker
+    plan: starter
+    rootDir: core
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cosign-db
+          property: connectionString
+      - key: CORE_AGENT_TOKEN
+        generateValue: true
+      - key: CORE_OPERATOR_TOKEN
+        generateValue: true
+      - key: CORE_INTERNAL_TOKEN
+        generateValue: true
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+
+  # Python agent: private network only. Holds no PayPal secret.
+  - type: pserv
+    name: cosign-agent
+    runtime: docker
+    plan: starter
+    rootDir: agent
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: CORE_URL
+        fromService:
+          type: web
+          name: cosign-core
+          property: hostport
+      - key: CORE_AGENT_TOKEN
+        fromService:
+          type: web
+          name: cosign-core
+          envVarKey: CORE_AGENT_TOKEN
+      - key: COSIGN_LLM_MODE
+        value: replay
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+  # Next.js web app: landing page and console. Talks to the core and agent server-side.
+  - type: web
+    name: cosign-web
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: COSIGN_CORE_URL
+        fromService:
+          type: web
+          name: cosign-core
+          property: hostport
+      - key: COSIGN_AGENT_URL
+        fromService:
+          type: pserv
+          name: cosign-agent
+          property: hostport
+      - key: CORE_OPERATOR_TOKEN
+        fromService:
+          type: web
+          name: cosign-core
+          envVarKey: CORE_OPERATOR_TOKEN
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: AG_STUDIO
+        sync: false
+      - key: AG_STUDIO_OPENAI_API_KEY
+        sync: false
+
+  # Day-3 job. The blueprint names Render Workflows; until its SDK languages are confirmed,
+  # a cron job calling the core does the same work.
+  - type: cron
+    name: cosign-reauthorize
+    runtime: node
+    plan: starter
+    schedule: "0 */6 * * *"
+    buildCommand: "true"
+    startCommand: >-
+      node -e "fetch((/^https?:/.test(process.env.CORE)?'':'http://')+process.env.CORE+'/internal/reauthorize',{method:'POST',headers:{authorization:'Bearer '+process.env.CORE_INTERNAL_TOKEN}}).then(async r=>{console.log(r.status,await r.text());process.exit(r.ok?0:1)})"
+    envVars:
+      - key: CORE
+        fromService:
+          type: web
+          name: cosign-core
+          property: hostport
+      - key: CORE_INTERNAL_TOKEN
+        fromService:
+          type: web
+          name: cosign-core
+          envVarKey: CORE_INTERNAL_TOKEN

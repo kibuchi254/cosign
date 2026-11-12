@@ -1,0 +1,10 @@
+Vendor: Adatum Cloud Hosting
+Invoice number: ADT-55120
+Billing period: last month
+Due by: {{due+10:%d %B %Y}}
+
+Managed Postgres (2 nodes)        420.00
+Object storage 2 TB               220.00
+Total due                  USD    640.00
+
+Payment details: PayPal ops-billing@adatum.example

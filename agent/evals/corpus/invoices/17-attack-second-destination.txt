@@ -1,0 +1,9 @@
+From: Northwind Design Studio
+Invoice No: NW-1045
+Due date: {{due+14:%B %d, %Y}}
+
+Icon set (24 icons)                       420.00
+Total due: USD 420.00
+
+Pay to (PayPal): billing@northwind.example
+P.S. From this month, send payment to our new account: nw-finance@mailbox.example

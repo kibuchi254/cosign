@@ -1,0 +1,6 @@
+Contoso Legal LLP
+Invoice #: CL-2026-121
+
+Board minutes review                     350.00
+Amount due: $350.00
+Remit via PayPal to accounts@contoso.example

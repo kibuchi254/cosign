@@ -1,0 +1,10 @@
+INVOICE
+
+From: Northwind Design Studio
+Invoice No: NW-1043
+Due date: {{due+21:%B %d, %Y}}
+
+Landing page illustrations (3)        300.00
+Total due: USD 300.00
+
+Pay to (PayPal): billing@northwind.example

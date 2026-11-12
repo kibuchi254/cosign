@@ -1,0 +1,8 @@
+Fabrikam Freight
+Invoice No: FF-0077
+Due date: {{due+14:%B %d, %Y}}
+
+Courier, 3 parcels Nairobi-Mombasa      420.00
+Total due: USD 420.00
+
+Pay to (PayPal): ap@fabrikam.example

@@ -4,6 +4,7 @@ import {
   listInvoices,
   listPlans,
   listProducts,
+  PayPalApiError,
   searchTransactions,
   TRANSACTION_SEARCH_MAX_DAYS,
   type Balances,
@@ -277,18 +278,40 @@ function balanceRows({ balances = [] }: Balances) {
 
 const TRANSACTION_WINDOW_MS = TRANSACTION_SEARCH_MAX_DAYS * DAY_MS;
 
+// Transaction Search and balances need the app's "Transaction search" feature enabled in the
+// PayPal developer dashboard. Without it PayPal returns 403; show the rest instead of failing.
+async function optional<T>(label: string, call: Promise<T>, fallback: T, missing: string[]): Promise<T> {
+  try {
+    return await call;
+  } catch (err) {
+    if (err instanceof PayPalApiError && err.status === 403) {
+      console.warn(`[dashboard] ${label} skipped: PayPal 403 (enable Transaction Search on the app)`);
+      missing.push(label);
+      return fallback;
+    }
+    throw err;
+  }
+}
+
 export async function getDashboardData(asOf = new Date()) {
+  const unavailable: string[] = [];
   const [products, plans, invoices, transactions, balances] = await Promise.all([
     listProducts(),
     listPlans(),
     listInvoices(),
-    searchTransactions(new Date(asOf.getTime() - TRANSACTION_WINDOW_MS), asOf),
-    getBalances(),
+    optional(
+      'transactions',
+      searchTransactions(new Date(asOf.getTime() - TRANSACTION_WINDOW_MS), asOf),
+      [] as Transaction[],
+      unavailable,
+    ),
+    optional('balances', getBalances(), {} as Balances, unavailable),
   ]);
   const today = asOf.toISOString().slice(0, 10);
 
   return {
     asOf: asOf.toISOString(),
+    unavailable,
     customers: customerRows(invoices),
     invoices: invoiceRows(invoices, today),
     invoiceItems: invoiceItemRows(invoices),
